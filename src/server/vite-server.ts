@@ -3,7 +3,7 @@ import http from 'http';
 import fs from 'fs';
 import path from 'path';
 
-const PORT = 3000;
+const PORT = 8080;
 
 /**
  * This is a custom implementation of vite's server.

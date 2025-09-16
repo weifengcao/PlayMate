@@ -54,7 +54,7 @@ export const Login = () => {
 
   return (
     <>
-      <H1>WagMate</H1>
+      <H1>PlayMate</H1>
       <LogoImage />
       <LoginSection>
         <form onSubmit={handleSubmitEvent}>

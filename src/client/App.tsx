@@ -1,9 +1,9 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import Login from './componets/Login';
-import Dashboard from './componets/Dashboard';
-import Friends from './componets/Friends';
+import { Login } from './componets/Login';
+import { Dashboard } from './componets/Dashboard';
+import { Friends } from './componets/Friends';
 import WorldMap from './componets/WorldMap';
-import ProtectedRoute from './componets/ProtectedRoute';
+import { ProtectedRoute } from './componets/ProtectedRoute';
 import { AuthProvider } from './hooks/AuthProvider';
 
 function App() {
