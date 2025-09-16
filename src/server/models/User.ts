@@ -10,8 +10,8 @@ interface UserAttributes {
   name: string;
   password: string;
   email: string;
-  dogwalk_latit: number;
-  dogwalk_longi: number;
+  playdate_latit: number;
+  playdate_longi: number;
 }
 
 // Define a type for optional attributes during creation
@@ -23,8 +23,8 @@ export class User extends Model<UserAttributes, UserCreationAttributes> implemen
   public name!: string;
   public password!: string;
   public email!: string;
-  public dogwalk_latit!: number;
-  public dogwalk_longi!: number;
+  public playdate_latit!: number;
+  public playdate_longi!: number;
 
   // Timestamps (optional, depending on your configuration)
   public readonly createdAt!: Date;
@@ -52,10 +52,10 @@ export function initUser(sequelize: Sequelize) {
         type: DataTypes.STRING,
         allowNull: false,
       },
-      dogwalk_latit: {
+      playdate_latit: {
         type: DataTypes.FLOAT,
       },
-      dogwalk_longi: {
+      playdate_longi: {
         type: DataTypes.FLOAT,
       },
     },

@@ -7,13 +7,13 @@ import { User } from '../models/User'
 const router = Router()
 
 
-router.get('/latlong', Verify, async (req, res) => {
+router.get('/coordinates', Verify, async (req, res) => {
   try {
     const req_user = (req as AuthenticatedRequest).user;
     const user = await User.findOne({ where: {id: req_user.id}});
     if (user) {
       const userDetailsToReturn = {
-        dogwalk_latit: user.dogwalk_latit, dogwalk_longi: user.dogwalk_longi
+        playdate_latit: user.playdate_latit, playdate_longi: user.playdate_longi
       };
       res.json(userDetailsToReturn);
     }
@@ -26,7 +26,7 @@ router.get('/latlong', Verify, async (req, res) => {
   }
 });
 
-router.post('/latlong', Verify, async (req, res) => {
+router.post('/coordinates', Verify, async (req, res) => {
   try {
     const req_user = (req as AuthenticatedRequest).user;
     // It looks weird, but we need to set the latitude and longitude
@@ -37,8 +37,8 @@ router.post('/latlong', Verify, async (req, res) => {
     // It's important to split the workload, to optimize response time.
     const sqlQuery = (
       'UPDATE users SET '
-      + 'dogwalk_latit = ((' + req.body.dogwalk_latit + ' * 100000)::numeric::integer % (90 * 100000))::real / 100000, '
-      + 'dogwalk_longi = ((' + req.body.dogwalk_longi + ' * 100000)::numeric::integer % (180 * 100000))::real / 100000 '
+      + 'playdate_latit = ((' + req.body.playdate_latit + ' * 100000)::numeric::integer % (90 * 100000))::real / 100000, '
+      + 'playdate_longi = ((' + req.body.playdate_longi + ' * 100000)::numeric::integer % (180 * 100000))::real / 100000 '
       + 'WHERE id = ' + req_user.id
     );
     const [results, metadata] = await sequelize.query(sqlQuery);

@@ -1,26 +1,26 @@
-export async function getMyDogs() {
-  const resp = await fetch("/api/dogs/mydogs");
+export async function getMyKids() {
+  const resp = await fetch("/api/kids/mykids");
   if (resp.ok) {
-    const dogs = await resp.json();
-    return dogs;
+    const kids = await resp.json();
+    return kids;
   }
-  throw new Error("Unable to fetch dogs list");
+  throw new Error("Unable to fetch kids list");
 }
 
-export async function getMyDogwalkPoint() {
-  const resp = await fetch("/api/dogwalkpoint/latlong");
+export async function getMyPlaydatePoint() {
+  const resp = await fetch("/api/playdate-point/coordinates");
   if (resp.ok) {
     const point = await resp.json();
     return point;
   }
-  throw new Error("Unable to fetch dogwalk point");
+  throw new Error("Unable to fetch playdate location");
 }
 
-export async function setMyDogwalkPoint(latit: number, longi: number) {
-  const resp = await fetch("/api/dogwalkpoint/latlong", {
+export async function setMyPlaydatePoint(latit: number, longi: number) {
+  const resp = await fetch("/api/playdate-point/coordinates", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ dogwalk_latit: latit, dogwalk_longi: longi }),
+    body: JSON.stringify({ playdate_latit: latit, playdate_longi: longi }),
   });
   if (resp.ok) {
     return true;

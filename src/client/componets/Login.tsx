@@ -85,11 +85,10 @@ export const Login = () => {
         </form>
       </LoginSection>
       <Subtext>
-        WagMate connects dog owners in your area with similar schedules and dog
-        breeds for friendly, social walks. Whether you're looking for a walking
-        buddy or want to meet new friends for your furry companion, WagMate
-        makes finding the perfect match easy and fun. Share your love for dogs
-        while exploring new routes with fellow dog lovers nearby!
+        PlayMate connects local families who want to coordinate fun playdates
+        for their kids. Discover nearby guardians with similar schedules,
+        match children by age and interests, and build a supportive community
+        that makes planning playtime simple and enjoyable for everyone.
       </Subtext>
     </>
   );

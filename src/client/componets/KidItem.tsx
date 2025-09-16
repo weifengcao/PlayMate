@@ -1,21 +1,15 @@
-import React from 'react';
-
-interface Kid {
-  id: number;
-  name: string;
-  breed: string;
-  age: number;
-}
+import { FC } from 'react';
+import { Kid } from '../types';
 
 interface KidItemProps {
   kid: Kid;
 }
 
-const KidItem: React.FC<KidItemProps> = ({ kid }) => {
+const KidItem: FC<KidItemProps> = ({ kid }) => {
   return (
     <div className="kid-item">
       <h3>{kid.name}</h3>
-      <p>Breed: {kid.breed}</p>
+      <p>Favorite activity: {kid.favoriteActivity}</p>
       <p>Age: {kid.age}</p>
     </div>
   );

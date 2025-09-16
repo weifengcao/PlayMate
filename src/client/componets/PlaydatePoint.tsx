@@ -3,16 +3,16 @@
 // Good luck !
 
 import { useEffect, useState } from "react";
-import { setMyDogwalkPoint, getMyDogwalkPoint } from "../api";
+import { setMyPlaydatePoint, getMyPlaydatePoint } from "../api";
 
-export const DogWalkPoint = (props) => {
+export const PlaydatePoint = (props) => {
   const [latitude, setLatitude] = useState(0);
   const [longitude, setLongitude] = useState(0);
   const [error, setErrMessage] = useState("");
 
   const fetchDataAndUpdateState = () => {
-    getMyDogwalkPoint().then((result) => {
-      console.log("updating withzzz", result);
+    getMyPlaydatePoint().then((result) => {
+      console.log("updating playdate point", result);
       updateLatLong(result);
     });
   };
@@ -20,8 +20,8 @@ export const DogWalkPoint = (props) => {
   const updateLatLong = (data) => {
     const updateLatitude = (lat) => setLatitude(lat);
     const updateLongitude = (long) => setLongitude(long);
-    updateLatitude(data.dogwalk_latit);
-    updateLongitude(data.dogwalk_longi);
+    updateLatitude(data.playdate_latit);
+    updateLongitude(data.playdate_longi);
   };
 
   useEffect(() => {
@@ -36,8 +36,8 @@ export const DogWalkPoint = (props) => {
   }, [props]);
 
   const onFormInputChange = () => {
-    let lat = document.getElementById("dogwalk_latit").value;
-    let long = document.getElementById("dogwalk_longi").value;
+    let lat = document.getElementById("playdate_latit").value;
+    let long = document.getElementById("playdate_longi").value;
     if (lat != latitude) {
       changeLatitude(lat);
     }
@@ -58,9 +58,9 @@ export const DogWalkPoint = (props) => {
 
   const formSubmitHandler = (event) => {
     event.preventDefault();
-    let lat = document.getElementById("dogwalk_latit").value;
+    let lat = document.getElementById("playdate_latit").value;
     console.log("latzz", lat);
-    let long = document.getElementById("dogwalk_longi").value;
+    let long = document.getElementById("playdate_longi").value;
     const triggerUpdate = () => {
       if (props.onUpdate) props.onUpdate();
     };
@@ -70,16 +70,16 @@ export const DogWalkPoint = (props) => {
       const wait = (milliseconds) =>
         new Promise((resolve) => setTimeout(resolve, milliseconds));
 
-      getMyDogwalkPoint().then((result) => {
+      getMyPlaydatePoint().then((result) => {
         dataInit = result;
         console.log("dataInit z", dataInit);
 
-        setMyDogwalkPoint(lat, long);
+        setMyPlaydatePoint(lat, long);
 
         //triggerUpdate();
         wait(1).then(() => {
           console.log("Waited 1 milliseconds");
-          getMyDogwalkPoint().then((result) => {
+          getMyPlaydatePoint().then((result) => {
             dataCurrent = result;
             console.log("dataCurrent", dataCurrent);
             if (dataCurrent != dataInit) {
@@ -89,7 +89,7 @@ export const DogWalkPoint = (props) => {
             }
             wait(1000).then(() => {
               console.log("Waited 1 second");
-              getMyDogwalkPoint().then((result) => {
+              getMyPlaydatePoint().then((result) => {
                 dataCurrent = result;
                 console.log("dataCurrent", dataCurrent);
                 if (dataCurrent != dataInit) {
@@ -138,15 +138,15 @@ export const DogWalkPoint = (props) => {
         <div style={{ display: "block" }}>
           {renderLabelAndInputField(
             "Latitude:",
-            "dogwalk_latit",
-            "dogwalk_latit",
+            "playdate_latit",
+            "playdate_latit",
             latitude,
             "white"
           )}
           {renderLabelAndInputField(
             "Longitude:",
-            "dogwalk_longi",
-            "dogwalk_longi",
+            "playdate_longi",
+            "playdate_longi",
             longitude,
             "white"
           )}

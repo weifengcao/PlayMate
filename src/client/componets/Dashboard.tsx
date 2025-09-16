@@ -1,26 +1,26 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { useAuth } from "../hooks/AuthProvider";
-import { getMyDogs } from "../api";
+import { getMyKids } from "../api";
 import { Header } from "./Header";
-import { DogItem } from "./DogItem";
-import { Dog } from "../types";
+import KidItem from "./KidItem";
+import { Kid } from "../types";
 import { Section } from "./Section";
 
 export const Dashboard = () => {
-  const [dogs, setDogs] = useState<Dog[]>([]);
+  const [kids, setKids] = useState<Kid[]>([]);
   const auth = useAuth();
 
   useEffect(() => {
     const fetchData = async () => {
-      const userDogs = await getMyDogs();
-      console.log(userDogs);
-      setDogs(userDogs);
-      console.log("dogs are set");
+      const userKids = await getMyKids();
+      console.log(userKids);
+      setKids(userKids);
+      console.log("kids are set");
     };
     try {
       fetchData();
     } catch (err) {
-      console.log("failed to fetch dogs", err);
+      console.log("failed to fetch kids", err);
     }
   }, []);
 
@@ -46,16 +46,16 @@ export const Dashboard = () => {
       <br />
       <br />
       <div>
-        <a href="/worldmap">Go to worldmap</a>
+        <a href="/map">Go to playdate map</a>
         <br />
         <br />
         <a href="/friends">Manage your friends</a>
       </div>
       <br />
-      <Section title={`You have ${dogs.length} dog(s)`}>
+      <Section title={`You support ${kids.length} kid(s)`}>
         <div>
-          {dogs.map((dog) => (
-            <DogItem key={dog.id} dog={dog} />
+          {kids.map((kid) => (
+            <KidItem key={kid.id} kid={kid} />
           ))}
         </div>
       </Section>

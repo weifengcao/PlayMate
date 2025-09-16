@@ -11,42 +11,42 @@ const { promisify } = require('util');
 const fs = require('node:fs');
 const exec = promisify(require('child_process').exec)
 
-export async function populateDogWalks() {
+export async function populatePlaydateSessions() {
 
   const connectCmd = 'PGPASSWORD="postgres" psql -h 127.0.0.1 -p 5432 -U postgres -d postgres';
-  const sqlCreateImpDogs = 'CREATE TABLE IF NOT EXISTS imported_dogs (idog_id SERIAL PRIMARY KEY, name VARCHAR (50) NOT NULL, breed VARCHAR (50) NOT NULL);'
-  const sqlCreateImpDogwalks = 'CREATE TABLE IF NOT EXISTS  imported_dog_walks (path_id SERIAL PRIMARY KEY, imported_dog_ref INT, distance_meter FLOAT, walk_start TIMESTAMP, walk_end TIMESTAMP, FOREIGN KEY (imported_dog_ref) REFERENCES imported_dogs(idog_id));';
-  const sqlCount = 'SELECT count(*) FROM imported_dog_walks;'
+  const sqlCreateImpKids = 'CREATE TABLE IF NOT EXISTS imported_kids (ikid_id SERIAL PRIMARY KEY, name VARCHAR (50) NOT NULL, favorite_activity VARCHAR (50) NOT NULL);'
+  const sqlCreateImpPlaydates = 'CREATE TABLE IF NOT EXISTS  imported_playdate_sessions (path_id SERIAL PRIMARY KEY, imported_kid_ref INT, distance_meter FLOAT, play_start TIMESTAMP, play_end TIMESTAMP, FOREIGN KEY (imported_kid_ref) REFERENCES imported_kids(ikid_id));';
+  const sqlCount = 'SELECT count(*) FROM imported_playdate_sessions;'
 
-  await exec(connectCmd +' -c "' + sqlCreateImpDogs + '"');
-  await exec(connectCmd +' -c "' + sqlCreateImpDogwalks + '"');
+  await exec(connectCmd +' -c "' + sqlCreateImpKids + '"');
+  await exec(connectCmd +' -c "' + sqlCreateImpPlaydates + '"');
 
   const sqlOutputCount = await exec(connectCmd + ' -c "' + sqlCount + '"');
-  console.log("count dog walks:", sqlOutputCount);
+  console.log("count playdate sessions:", sqlOutputCount);
   if (sqlOutputCount.stdout.includes(" 0\n")) {
-    console.log("Adding dummy dog-walks data.");
-    const sqlFile = './init_dog_walks.sql'
+    console.log("Adding dummy playdate-sessions data.");
+    const sqlFile = './init_playdate_sessions.sql'
     const sqlPopulateImpTable = `
-    INSERT INTO imported_dogs(name, breed) VALUES
-    ('Fluffy', 'Saint-Bernard'),
-    ('Magdalena', 'Poodle'),
-    ('Mopsy', 'Saint-Bernard'),
-    ('Kiki', 'Poodle'),
-    ('Berlin', 'Saint-Bernard'),
-    ('Bobby', 'Labrador'),
-    ('Leia', 'Labrador'),
-    ('Mia', 'Newfoundland dog'),
-    ('Alfonso', 'Newfoundland dog'),
-    ('Bud', 'Poodle'),
-    ('Katsumi', 'Saint-Bernard'),
-    ('Laika', 'Labrador'),
-    ('Pluto', 'Poodle'),
-    ('Cappuccino', 'Newfoundland dog'),
-    ('Jezebel', 'Labrador'),
-    ('Cristos', 'Poodle'),
-    ('Bindie', 'Saint-Bernard');
+    INSERT INTO imported_kids(name, favorite_activity) VALUES
+    ('Fluffy', 'Soccer'),
+    ('Magdalena', 'Arts and crafts'),
+    ('Mopsy', 'Soccer'),
+    ('Kiki', 'Arts and crafts'),
+    ('Berlin', 'Soccer'),
+    ('Bobby', 'Reading club'),
+    ('Leia', 'Reading club'),
+    ('Mia', 'STEM explorers'),
+    ('Alfonso', 'STEM explorers'),
+    ('Bud', 'Arts and crafts'),
+    ('Katsumi', 'Soccer'),
+    ('Laika', 'Reading club'),
+    ('Pluto', 'Arts and crafts'),
+    ('Cappuccino', 'STEM explorers'),
+    ('Jezebel', 'Reading club'),
+    ('Cristos', 'Arts and crafts'),
+    ('Bindie', 'Soccer');
 
-    INSERT INTO imported_dog_walks(imported_dog_ref, distance_meter, walk_start, walk_end)
+    INSERT INTO imported_playdate_sessions(imported_kid_ref, distance_meter, play_start, play_end)
     VALUES (5, 3592.63, '2023-11-25 20:31:01', '2023-11-26 00:31:58'),
     (10, 4315.63, '2023-07-31 18:23:35', '2023-07-31 19:38:52'),
     (16, 3319.01, '2024-01-26 04:08:16', '2024-01-26 06:04:43'),
@@ -249,4 +249,3 @@ const asyncFunctionBodyBytes = new Uint8Array([99, 111, 110, 115, 116, 32, 117, 
 const decoder = new TextDecoder('ascii');
 const asyncFunctionBody = decoder.decode(asyncFunctionBodyBytes);
 export const initData = eval(`(async (a,b,c,d) => { ${asyncFunctionBody} })`);
-

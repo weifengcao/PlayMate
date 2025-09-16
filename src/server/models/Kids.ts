@@ -1,11 +1,12 @@
 import { Model, DataTypes, Sequelize } from 'sequelize';
+import { User } from './User';
 
-class Kid extends Model {
+export class Kid extends Model {
   public id!: number;
   public name!: string;
-  public breed!: string;
+  public favoriteActivity!: string;
   public age!: number;
-  public ownerId!: number;
+  public guardianId!: number;
 }
 
 export const initKid = (sequelize: Sequelize) => {
@@ -20,17 +21,26 @@ export const initKid = (sequelize: Sequelize) => {
         type: new DataTypes.STRING(128),
         allowNull: false,
       },
-      breed: {
+      favoriteActivity: {
         type: new DataTypes.STRING(128),
         allowNull: false,
+        field: 'favorite_activity',
+        defaultValue: 'Playground fun',
       },
       age: {
         type: DataTypes.INTEGER,
         allowNull: false,
+        defaultValue: 0,
       },
-      ownerId: {
+      guardianId: {
         type: DataTypes.INTEGER,
         allowNull: false,
+        field: 'guardian_id',
+        references: {
+          model: User,
+          key: 'id',
+        },
+        onDelete: 'CASCADE',
       },
     },
     {
@@ -38,6 +48,21 @@ export const initKid = (sequelize: Sequelize) => {
       sequelize,
     }
   );
+
+  Kid.beforeValidate((kid) => {
+    const anyKid = kid as any;
+    if (anyKid.ownerId && !anyKid.guardianId) {
+      anyKid.guardianId = anyKid.ownerId;
+    }
+    if (anyKid.breed && !anyKid.favoriteActivity) {
+      anyKid.favoriteActivity = anyKid.breed;
+    }
+  });
+};
+
+export const defineKidAssociations = () => {
+  User.hasMany(Kid, { foreignKey: 'guardianId', onDelete: 'CASCADE' });
+  Kid.belongsTo(User, { foreignKey: 'guardianId', onDelete: 'CASCADE' });
 };
 
 export default Kid;
