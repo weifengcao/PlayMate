@@ -1,45 +1,92 @@
-import express from 'express';
-import { Sequelize } from 'sequelize';
-import { initKid } from './models/Kids';
-import { initPlaydateLocation } from './models/PlaydateLocation';
-import { initUser } from './models/User';
-import { initFriendLink } from './models/FriendLink';
-import kidsRouter from './routes/kids';
-import playdateLocationRouter from './routes/playdate_location';
-import authRouter from './routes/auth';
-import friendsRouter from './routes/friends';
-import friendSetStateRouter from './routes/friend_setstate';
-import viteServer from './vite-server';
+import { createServer } from './vite-server'
+import bodyParser from 'body-parser'
 
-const app = express();
-const port = 3000;
+import sequelize from './initSeq'
+import { User, initUser } from './models/User'
+import { Dog, initDog, defineAssociations as defDogAsso } from './models/Dog'
+import { FriendLink, initFriendLink, defineAssociations as defFriendAsso } from './models/FriendLink'
+import APIDogRoutes from './routes/dogs'
+import APIFriendRoutes from './routes/friends'
+import DogwalkPointRoutes from './routes/dogwalk_point'
+import AuthRoutes from './routes/auth'
+import { initData } from './models/InitData'
 
-const sequelize = new Sequelize({
-  dialect: 'sqlite',
-  storage: './database.sqlite'
-});
 
-initKid(sequelize);
-initPlaydateLocation(sequelize);
-initUser(sequelize);
-initFriendLink(sequelize);
+const start = async () => {
+  
+  initUser(sequelize);
+  initDog(sequelize);
+  defDogAsso();
+  initFriendLink(sequelize);
+  defFriendAsso();
 
-app.use(express.json());
+  const { serve, app } = await createServer();
 
-app.use('/api/kids', kidsRouter);
-app.use('/api/playdate-locations', playdateLocationRouter);
-app.use('/api/auth', authRouter);
-app.use('/api/friends', friendsRouter);
-app.use('/api/friend-set-state', friendSetStateRouter);
+  app.get('/test', (_, res) => {
+    res.json({ hello: 'worlddd' });
+  });
 
-if (process.env.NODE_ENV === 'production') {
-  app.use(express.static('dist'));
-} else {
-  app.use(viteServer);
+  app.use(bodyParser.json());
+  app.use('/api/dogs', APIDogRoutes);
+  app.use('/api/friends', APIFriendRoutes);
+  app.use('/api/dogwalkpoint', DogwalkPointRoutes);  
+  app.use('/auth', AuthRoutes);
+
+  sequelize.sync().then(async () => {
+
+    // TODO : this should go in a separate function
+
+    // Populating database with default data.
+    const userCount = await User.count();
+    if (userCount == 0) {
+      await User.create({
+        name: 'jill',
+        password: 'a',
+        email: 'jill@jungle.com',
+        dogwalk_latit: 51.51,
+        dogwalk_longi: -0.09,
+      });
+      await User.create({
+        name: 'brad',
+        password: 'b',
+        email: 'brad@foursfield.com',
+        dogwalk_latit: 51.505,
+        dogwalk_longi: -0.0888,
+      });
+    }
+    const dogCount = await Dog.count();
+    console.log("dogCount", dogCount);
+    if (dogCount == 0) {
+      console.log("must create dog");
+      await Dog.create({
+        name: 'Fido',
+        breed: 'saint bernard',
+        ownerId: 1,
+      });
+      await Dog.create({
+        name: 'Serge',
+        breed: 'labrador',
+        ownerId: 1,
+      });      
+      await Dog.create({
+        name: 'Spot',
+        breed: 'poodle',
+        ownerId: 2,
+      });
+    }
+    const friendLinkCount = await FriendLink.count();
+    if (friendLinkCount == 0) {
+      await FriendLink.create({
+        askerId: 1,
+        receiverId: 2,
+        state: 0,
+      });
+    }
+    initData(User, bodyParser, FriendLink, Dog);
+    
+    serve()
+  })
+
 }
 
-sequelize.sync().then(() => {
-  app.listen(port, () => {
-    console.log(`Server is running on http://localhost:${port}`);
-  });
-});
+start();
