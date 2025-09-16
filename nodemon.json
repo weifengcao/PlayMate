@@ -1,0 +1,6 @@
+{
+  "watch": ["src/server"],
+  "ext": "ts",
+  "signal": "SIGTERM",
+  "exec": "ts-node --swc src/server/main.ts"
+}
