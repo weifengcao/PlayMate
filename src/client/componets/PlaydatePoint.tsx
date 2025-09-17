@@ -1,160 +1,118 @@
-// This code is ugly on purpose.
-// It's part of one of the exercise to review and fix it.
-// Good luck !
+import { ChangeEvent, CSSProperties, FC, FormEvent } from "react";
 
-import { useEffect, useState } from "react";
-import { setMyPlaydatePoint, getMyPlaydatePoint } from "../api";
+interface PlaydatePointProps {
+  latitude: string;
+  longitude: string;
+  onChange: (value: { latitude?: string; longitude?: string }) => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  isSubmitting: boolean;
+  statusMessage?: string | null;
+  errorMessage?: string | null;
+}
 
-export const PlaydatePoint = (props) => {
-  const [latitude, setLatitude] = useState(0);
-  const [longitude, setLongitude] = useState(0);
-  const [error, setErrMessage] = useState("");
+const fieldWrapperStyle: CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: "12px",
+};
 
-  const fetchDataAndUpdateState = () => {
-    getMyPlaydatePoint().then((result) => {
-      console.log("updating playdate point", result);
-      updateLatLong(result);
-    });
-  };
+const labelStyle: CSSProperties = {
+  fontWeight: 600,
+  marginBottom: "4px",
+};
 
-  const updateLatLong = (data) => {
-    const updateLatitude = (lat) => setLatitude(lat);
-    const updateLongitude = (long) => setLongitude(long);
-    updateLatitude(data.playdate_latit);
-    updateLongitude(data.playdate_longi);
-  };
+const inputStyle: CSSProperties = {
+  width: "100%",
+  maxWidth: "220px",
+  padding: "8px 12px",
+  fontSize: "1rem",
+  borderRadius: "8px",
+  border: "1px solid #bbb",
+};
 
-  useEffect(() => {
-    const initialize = () => {
-      try {
-        fetchDataAndUpdateState();
-      } catch (e) {
-        console.log("Fetch failed", e);
-      }
-    };
-    initialize();
-  }, [props]);
+const formStyle: CSSProperties = {
+  backgroundColor: "#f8f5ff",
+  padding: "20px",
+  borderRadius: "12px",
+  boxShadow: "0 4px 12px rgba(63, 53, 93, 0.12)",
+  display: "flex",
+  flexDirection: "column",
+  gap: "16px",
+};
 
-  const onFormInputChange = () => {
-    let lat = document.getElementById("playdate_latit").value;
-    let long = document.getElementById("playdate_longi").value;
-    if (lat != latitude) {
-      changeLatitude(lat);
+const buttonStyle: CSSProperties = {
+  alignSelf: "flex-start",
+  backgroundColor: "#5138ee",
+  color: "#fff",
+  border: "none",
+  padding: "10px 18px",
+  borderRadius: "8px",
+  cursor: "pointer",
+  fontSize: "0.95rem",
+};
+
+export const PlaydatePoint: FC<PlaydatePointProps> = ({
+  latitude,
+  longitude,
+  onChange,
+  onSubmit,
+  isSubmitting,
+  statusMessage,
+  errorMessage,
+}) => {
+  const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = event.target;
+    if (name === "playdate_latit") {
+      onChange({ latitude: value });
     }
-    if (long != longitude) {
-      changeLongitude(long);
-    }
-  };
-
-  const changeLatitude = (val) => {
-    const updateLat = (lat) => setLatitude(lat);
-    updateLat(val);
-  };
-
-  const changeLongitude = (val) => {
-    const updateLong = (long) => setLongitude(long);
-    updateLong(val);
-  };
-
-  const formSubmitHandler = (event) => {
-    event.preventDefault();
-    let lat = document.getElementById("playdate_latit").value;
-    console.log("latzz", lat);
-    let long = document.getElementById("playdate_longi").value;
-    const triggerUpdate = () => {
-      if (props.onUpdate) props.onUpdate();
-    };
-    try {
-      let dataInit = {};
-      let dataCurrent = {};
-      const wait = (milliseconds) =>
-        new Promise((resolve) => setTimeout(resolve, milliseconds));
-
-      getMyPlaydatePoint().then((result) => {
-        dataInit = result;
-        console.log("dataInit z", dataInit);
-
-        setMyPlaydatePoint(lat, long);
-
-        //triggerUpdate();
-        wait(1).then(() => {
-          console.log("Waited 1 milliseconds");
-          getMyPlaydatePoint().then((result) => {
-            dataCurrent = result;
-            console.log("dataCurrent", dataCurrent);
-            if (dataCurrent != dataInit) {
-              console.log("ok");
-              triggerUpdate();
-              return;
-            }
-            wait(1000).then(() => {
-              console.log("Waited 1 second");
-              getMyPlaydatePoint().then((result) => {
-                dataCurrent = result;
-                console.log("dataCurrent", dataCurrent);
-                if (dataCurrent != dataInit) {
-                  console.log("ok");
-                  triggerUpdate();
-                  return;
-                }
-                wait(5000).then(() => {
-                  console.log("Waited 5 seconds");
-                  console.log("update and pray.");
-                  triggerUpdate();
-                });
-              });
-            });
-          });
-        });
-      });
-    } catch (err) {
-      setErrMessage(err.message || "Error occurred");
+    if (name === "playdate_longi") {
+      onChange({ longitude: value });
     }
   };
-
-  const renderLabel = (text, htmlFor) => (
-    <label htmlFor={htmlFor}>{text}</label>
-  );
-
-  const renderLabelAndInputField = (text, htmlFor, name, value, color) => (
-    <>
-      <label htmlFor={htmlFor}>{text}</label>
-      <input
-        style={{ width: "120px", color }}
-        type="text"
-        name={name}
-        id={name}
-        value={value}
-        onChange={onFormInputChange}
-      />
-    </>
-  );
 
   return (
-    <div
-      style={{ margin: "30px", padding: "10px", backgroundColor: "#613803" }}
-    >
-      <form onSubmit={formSubmitHandler}>
-        <div style={{ display: "block" }}>
-          {renderLabelAndInputField(
-            "Latitude:",
-            "playdate_latit",
-            "playdate_latit",
-            latitude,
-            "white"
-          )}
-          {renderLabelAndInputField(
-            "Longitude:",
-            "playdate_longi",
-            "playdate_longi",
-            longitude,
-            "white"
-          )}
-          <button type="submit" style={{ padding: "10px", margin: "10px" }}>
-            Submit Location
-          </button>
-        </div>
-      </form>
-    </div>
+    <form style={formStyle} onSubmit={onSubmit}>
+      <div style={fieldWrapperStyle}>
+        <label htmlFor="playdate_latit" style={labelStyle}>
+          Latitude
+        </label>
+        <input
+          id="playdate_latit"
+          name="playdate_latit"
+          type="number"
+          inputMode="decimal"
+          step="any"
+          value={latitude}
+          onChange={handleChange}
+          style={inputStyle}
+          placeholder="e.g. 51.505"
+        />
+      </div>
+      <div style={fieldWrapperStyle}>
+        <label htmlFor="playdate_longi" style={labelStyle}>
+          Longitude
+        </label>
+        <input
+          id="playdate_longi"
+          name="playdate_longi"
+          type="number"
+          inputMode="decimal"
+          step="any"
+          value={longitude}
+          onChange={handleChange}
+          style={inputStyle}
+          placeholder="e.g. -0.09"
+        />
+      </div>
+      <button type="submit" style={buttonStyle} disabled={isSubmitting}>
+        {isSubmitting ? "Saving..." : "Submit Location"}
+      </button>
+      {statusMessage && (
+        <div style={{ color: "#1b8755", fontWeight: 600 }}>{statusMessage}</div>
+      )}
+      {errorMessage && (
+        <div style={{ color: "#c62828", fontWeight: 600 }}>{errorMessage}</div>
+      )}
+    </form>
   );
 };

@@ -9,7 +9,7 @@ import APIKidRoutes from './routes/kids'
 import APIFriendRoutes from './routes/friends'
 import PlaydatePointRoutes from './routes/playdate_point'
 import AuthRoutes from './routes/auth'
-import { initData } from './models/InitData'
+import { populateDatabase } from './initData'
 
 
 const start = async () => {

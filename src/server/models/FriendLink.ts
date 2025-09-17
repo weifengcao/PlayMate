@@ -2,14 +2,14 @@ import { DataTypes, Model, Sequelize } from 'sequelize'
 import { User } from './User'
 
 export class FriendLink extends Model {
-  public id!: number;
-  public askerId!: number;
-  public receiverId!: number;
-  public state!: number;
+  declare id: number;
+  declare askerId: number;
+  declare receiverId: number;
+  declare state: number;
 
   // Add optional receiver and asker properties for TypeScript
-  public receiver?: User;
-  public asker?: User;
+  declare receiver?: User;
+  declare asker?: User;
 }
 
 export function initFriendLink(sequelize: Sequelize) {

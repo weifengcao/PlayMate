@@ -2,11 +2,11 @@ import { Model, DataTypes, Sequelize } from 'sequelize';
 import { User } from './User';
 
 export class Kid extends Model {
-  public id!: number;
-  public name!: string;
-  public favoriteActivity!: string;
-  public age!: number;
-  public guardianId!: number;
+  declare id: number;
+  declare name: string;
+  declare favoriteActivity: string;
+  declare age: number;
+  declare guardianId: number;
 }
 
 export const initKid = (sequelize: Sequelize) => {

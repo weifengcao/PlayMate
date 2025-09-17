@@ -93,7 +93,7 @@ export const Friends = () => {
       <br />
       <FriendAsk onUpdate={fetchData} />
       <br />
-      <a href="/dashboard">Back to dashboard</a>
+      <a href="/">Back to dashboard</a>
     </div>
   );
 };

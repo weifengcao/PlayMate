@@ -93,37 +93,46 @@ router.get('/confirmed', Verify, async (req, res) => {
 router.post('/ask', Verify, async (req, res) => {
   try {
     const user = (req as AuthenticatedRequest).user;
-    const pendingFriendName = req.body.friendname;
-    const friend = await User.findOne({ where: {name: pendingFriendName}});
-    if (friend.id === user.id) {
-  res.status(400).json({
-    status: "failed",
-    message: "You cannot send a friend request to yourself.",
-  });
-  return;
-}
-    console.log(friend);
-    if (!friend) {
-      res.status(401).json({
+    const pendingFriendName = typeof req.body.friendname === 'string' ? req.body.friendname.trim() : '';
+    if (!pendingFriendName) {
+      res.status(400).json({
         status: "failed",
         data: [],
-        message: "Can not ask this user as friend.",
+        message: "Friend name is required.",
       });
       return;
     }
+    const friend = await User.findOne({ where: {name: pendingFriendName}});
+    if (!friend) {
+      res.status(404).json({
+        status: "failed",
+        data: [],
+        message: "Cannot ask this user as friend.",
+      });
+      return;
+    }
+    if (friend.id === user.id) {
+      res.status(400).json({
+        status: "failed",
+        data: [],
+        message: "You cannot send a friend request to yourself.",
+      });
+      return;
+    }
+    console.log(friend);
     /*
     const friendLink = await FriendLink.findOne({
       where: {askerId: user.id, receiverId: friend.id}
     });
     */
     const friendLink = await FriendLink.findOne({
-  where: {
-    [Op.or]: [
-      { askerId: user.id, receiverId: friend.id, state: 1 },
-      { askerId: friend.id, receiverId: user.id, state: 1 }
-    ]
-  }
-});
+      where: {
+        [Op.or]: [
+          { askerId: user.id, receiverId: friend.id },
+          { askerId: friend.id, receiverId: user.id }
+        ]
+      }
+    });
     if (friendLink) {
       res.status(401).json({
         status: "failed",
@@ -138,7 +147,11 @@ router.post('/ask', Verify, async (req, res) => {
       receiverId: friend.id,
       state: 0,
     });
-    res.end();
+    res.status(201).json({
+      status: "success",
+      data: [{ id: friend.id, name: friend.name }],
+      message: "Friend request sent.",
+    });
   } catch (error) {
     if (error instanceof Error) {
       res.status(500).send(error.message);

@@ -7,8 +7,17 @@ const router = Router()
 router.post('/login', async (req, res) => {
   try {
     // Get variables for the login process
-    const userName = req.body.username;
+    const userName = typeof req.body.username === 'string' ? req.body.username.trim() : '';
+    const password = typeof req.body.password === 'string' ? req.body.password.trim() : '';
     console.log(userName);
+    if (!userName || !password) {
+      res.status(400).json({
+        status: "failed",
+        data: [],
+        message: "Username and password are required.",
+      });
+      return;
+    }
     // Check if user exists
     const user = await User.findOne({ where: {name: userName}});
     console.log("coucou");
@@ -23,7 +32,7 @@ router.post('/login', async (req, res) => {
       return;
     }
     // if user exists, validate password
-    const isPasswordValid = req.body.password == user.password;
+    const isPasswordValid = password === user.password;
     // if not valid, return unauthorized response
     if (!isPasswordValid) {
       res.status(401).json({

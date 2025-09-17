@@ -58,7 +58,7 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
           setUser(res.data[0].name);
           setToken(res.data[0].name);
           localStorage.setItem("site", res.data[0].name);
-          navigate("/dashboard");
+          navigate("/");
           return;
         }
         console.log("throwing an error because login failed");

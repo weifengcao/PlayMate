@@ -1,10 +1,10 @@
 import { Model, DataTypes, Sequelize } from 'sequelize';
 
 class PlaydateLocation extends Model {
-  public id!: number;
-  public name!: string;
-  public latitude!: number;
-  public longitude!: number;
+  declare id: number;
+  declare name: string;
+  declare latitude: number;
+  declare longitude: number;
 }
 
 export const initPlaydateLocation = (sequelize: Sequelize) => {

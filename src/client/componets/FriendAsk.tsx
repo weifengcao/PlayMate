@@ -14,10 +14,17 @@ export const FriendAsk: FC<FriendAskProps> = ({ onUpdate }) => {
   const handleSubmitEvent = useCallback(
     async (e: FormEvent<HTMLFormElement>) => {
       e.preventDefault();
-      const friendname = e.target.friendname.value;
+      const form = e.currentTarget;
+      const formData = new FormData(form);
+      const friendname = (formData.get("friendname") ?? "").toString().trim();
       console.log("we will try to make friend with :", friendname);
+      if (!friendname) {
+        setErrorMsg("Please enter a name before submitting.");
+        return;
+      }
       try {
-        await AskForFriend(friendname);
+        await askForFriend(friendname);
+        form.reset();
         setErrorMsg("");
         onUpdate();
       } catch (error: any) {

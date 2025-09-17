@@ -22,9 +22,14 @@ export async function Verify(req: Request, res: Response, next: NextFunction): P
             res.sendStatus(401);
             return;
         }
-        // Split the cookie string to get the actual jwt
-        const cookie = authHeader.split("=")[1];
-        // console.log(cookie);
+        // Split cookie header to get the actual jwt
+        const cookies = authHeader.split(';').map((c) => c.trim());
+        const sessionCookie = cookies.find((c) => c.startsWith('SessionID='));
+        if (!sessionCookie) {
+            res.status(401).json({ message: "Session cookie missing." });
+            return;
+        }
+        const cookie = sessionCookie.substring('SessionID='.length);
         // Verify using jwt to see if token has been tampered with or if it has expired.
         let decoded: string | jwt.JwtPayload | undefined;
         try {
