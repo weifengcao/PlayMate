@@ -28,12 +28,17 @@ export interface FriendRecommendationDetail {
   matchName: string;
   matchActivity: string;
   compatibilityScore: number;
+  suggestedSlot: string;
 }
 
 export interface FriendRecommendationPayload {
   headline?: string;
   message?: string;
   recommendations?: FriendRecommendationDetail[];
+  friendId?: number;
+  friendName?: string;
+  friendLatitude?: number | null;
+  friendLongitude?: number | null;
 }
 
 export interface AvailabilitySuggestion {
@@ -71,4 +76,33 @@ export interface AgentInboxItem<T = unknown> {
   type: string;
   result: T;
   updatedAt: string;
+}
+
+export type LeaderboardSort = 'popularity' | 'distance' | 'alphabetical';
+
+export interface ActivityLeaderboardItem {
+  activity: string;
+  kidCount: number;
+  avgDistanceKm: number | null;
+  closestFriend?: string;
+  friendId: number;
+  friendName: string;
+  friendLatitude?: number | null;
+  friendLongitude?: number | null;
+}
+
+export interface FriendRecommendationEnvelope {
+  sort: LeaderboardSort;
+  leaderboard: ActivityLeaderboardItem[];
+  friendRecommendations: FriendRecommendationPayload[];
+  playmates: PlaymateCandidate[];
+}
+
+export interface PlaymateCandidate {
+  kidId: number;
+  kidName: string;
+  age: number;
+  favoriteActivity: string;
+  guardianId: number;
+  guardianName: string;
 }

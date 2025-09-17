@@ -11,6 +11,7 @@ import APIFriendRoutes from './routes/friends'
 import PlaydatePointRoutes from './routes/playdate_point'
 import TaskRoutes from './routes/tasks'
 import TaskEventRoutes from './routes/task_events'
+import RecommendationRoutes from './routes/recommendations'
 import AuthRoutes from './routes/auth'
 import { populateDatabase } from './initData'
 
@@ -39,6 +40,7 @@ const start = async () => {
   app.use('/api/playdate-point', PlaydatePointRoutes);  
   app.use('/api/tasks', TaskRoutes);
   app.use('/api/task-events', TaskEventRoutes);
+  app.use('/api/recommendations', RecommendationRoutes);
   app.use('/auth', AuthRoutes);
 
   await sequelize.sync();

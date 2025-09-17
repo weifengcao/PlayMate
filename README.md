@@ -12,6 +12,8 @@ PlayMate helps nearby parents coordinate fun, safe playdates by matching their k
 - Seed data for users, kids, and friendships so you can explore immediately
 - Agent-powered orchestration with async task tracking, live updates, and feature-flagged recommendations
 - Distributed queue with automatic retries and dead-letter handling for agent tasks
+- Activity leaderboard with popularity and distance sorting to guide new playdate ideas
+- Interactive playdate map with friend markers and tailored suggestions
 
 ## Tech Stack
 - React 18 + Vite

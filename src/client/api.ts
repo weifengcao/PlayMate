@@ -1,4 +1,4 @@
-import { FriendshipState, Kid, PlaydateCoordinates, Friend, PlaydateUpdatePayload, AgentInboxItem, FriendRecommendationPayload } from "./types";
+import { FriendshipState, Kid, PlaydateCoordinates, Friend, PlaydateUpdatePayload, AgentInboxItem, FriendRecommendationPayload, ActivityLeaderboardItem, LeaderboardSort, FriendRecommendationEnvelope } from "./types";
 import { subscribeToTask, TaskUpdate, subscribeToAllTasks } from "./taskEvents";
 
 type TaskStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'dead-letter';
@@ -196,4 +196,35 @@ export async function deleteFriend(friendId: number): Promise<void> {
     throw new Error('Unexpected response when submitting delete friend task.');
   }
   await waitForTaskResult(submission.taskId);
+}
+
+export async function getActivityLeaderboard(sort: LeaderboardSort = 'popularity'): Promise<{ sort: LeaderboardSort; items: ActivityLeaderboardItem[] }> {
+  const query = new URLSearchParams({ sort }).toString();
+  return fetchApi<{ sort: LeaderboardSort; items: ActivityLeaderboardItem[] }>(`/api/recommendations/leaderboard?${query}`);
+}
+
+interface PlaydateRecommendationParams {
+  sort?: LeaderboardSort;
+  activity?: string;
+  minAge?: number;
+  maxAge?: number;
+}
+
+export async function getPlaydateRecommendations(params: PlaydateRecommendationParams = {}): Promise<FriendRecommendationEnvelope> {
+  const searchParams = new URLSearchParams();
+  if (params.sort) {
+    searchParams.set('sort', params.sort);
+  }
+  if (params.activity) {
+    searchParams.set('activity', params.activity);
+  }
+  if (typeof params.minAge === 'number' && Number.isFinite(params.minAge)) {
+    searchParams.set('minAge', String(params.minAge));
+  }
+  if (typeof params.maxAge === 'number' && Number.isFinite(params.maxAge)) {
+    searchParams.set('maxAge', String(params.maxAge));
+  }
+  const query = searchParams.toString();
+  const url = query ? `/api/playdate-point/recommendations?${query}` : '/api/playdate-point/recommendations';
+  return fetchApi<FriendRecommendationEnvelope>(url);
 }

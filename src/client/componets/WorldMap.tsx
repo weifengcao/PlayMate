@@ -11,16 +11,31 @@ import { LatLngExpression, LatLngLiteral, LeafletMouseEvent } from "leaflet";
 
 import { Header } from "./Header";
 import { Section } from "./Section";
-import KidItem from "./KidItem";
 import {
-  getAllKids,
   getMyPlaydatePoint,
   setMyPlaydatePoint,
+  getPlaydateRecommendations,
 } from "../api";
 import { PlaydatePoint } from "./PlaydatePoint";
-import { Kid, PlaydateCoordinates, AvailabilityPlan, LocalInsight } from "../types";
+import { PlaydateCoordinates, AvailabilityPlan, LocalInsight, FriendRecommendationEnvelope, LeaderboardSort, ActivityLeaderboardItem } from "../types";
 
 const DEFAULT_POSITION: LatLngLiteral = { lat: 51.505, lng: -0.09 };
+
+const EARTH_RADIUS_KM = 6371;
+const ONE_MILE_KM = 1.60934;
+
+const toRadians = (value: number) => (value * Math.PI) / 180;
+
+const distanceKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+  const dLat = toRadians(lat2 - lat1);
+  const dLon = toRadians(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return EARTH_RADIUS_KM * c;
+};
 
 const MapClickHandler = ({ onSelect }: { onSelect: (coords: LatLngLiteral) => void }) => {
   useMapEvents({
@@ -46,10 +61,16 @@ export default function WorldMap() {
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [hasSubmitted, setHasSubmitted] = useState(false);
-  const [kids, setKids] = useState<Kid[]>([]);
-  const [selectedActivity, setSelectedActivity] = useState<string>("");
   const [availabilityPlan, setAvailabilityPlan] = useState<AvailabilityPlan | null>(null);
   const [localInsight, setLocalInsight] = useState<LocalInsight | null>(null);
+  const [recommendations, setRecommendations] = useState<FriendRecommendationEnvelope | null>(null);
+  const [leaderboardSort, setLeaderboardSort] = useState<LeaderboardSort>('popularity');
+  const [filterActivityInput, setFilterActivityInput] = useState('');
+  const [filterMinAgeInput, setFilterMinAgeInput] = useState('');
+  const [filterMaxAgeInput, setFilterMaxAgeInput] = useState('');
+  const [filterActivity, setFilterActivity] = useState('');
+  const [filterMinAge, setFilterMinAge] = useState('');
+  const [filterMaxAge, setFilterMaxAge] = useState('');
 
   const fetchLocation = useCallback(async () => {
     try {
@@ -100,24 +121,40 @@ export default function WorldMap() {
     []
   );
 
-  const loadKids = useCallback(async () => {
+  const fetchRecommendations = useCallback(async () => {
     try {
-      const kidsList = await getAllKids();
-      setKids(kidsList);
+      const params: { sort?: LeaderboardSort; activity?: string; minAge?: number; maxAge?: number } = {
+        sort: leaderboardSort,
+      };
+
+      if (filterActivity) {
+        params.activity = filterActivity;
+      }
+
+      const minAgeNumber = filterMinAge !== '' ? Number(filterMinAge) : undefined;
+      if (minAgeNumber !== undefined && Number.isFinite(minAgeNumber)) {
+        params.minAge = minAgeNumber;
+      }
+
+      const maxAgeNumber = filterMaxAge !== '' ? Number(filterMaxAge) : undefined;
+      if (maxAgeNumber !== undefined && Number.isFinite(maxAgeNumber)) {
+        params.maxAge = maxAgeNumber;
+      }
+
+      const response = await getPlaydateRecommendations(params);
+      setRecommendations(response);
     } catch (error) {
-      console.log("Failed to load kids", error);
+      console.log("Failed to fetch playdate recommendations", error);
     }
-  }, []);
+  }, [leaderboardSort, filterActivity, filterMinAge, filterMaxAge]);
 
   useEffect(() => {
     fetchLocation();
   }, [fetchLocation]);
 
   useEffect(() => {
-    if (hasSubmitted && kids.length === 0) {
-      loadKids();
-    }
-  }, [hasSubmitted, kids.length, loadKids]);
+    fetchRecommendations();
+  }, [fetchRecommendations]);
 
   const handleLocationSubmit = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
@@ -155,9 +192,7 @@ export default function WorldMap() {
         }
         setStatusMessage(updated?.message ?? "Playdate location saved.");
         setHasSubmitted(true);
-        if (kids.length === 0) {
-          await loadKids();
-        }
+        await fetchRecommendations();
       } catch (error) {
         const err = error as Error;
         setErrorMessage(err.message || "Unable to save location.");
@@ -165,32 +200,27 @@ export default function WorldMap() {
         setIsSaving(false);
       }
     },
-    [formValues.latitude, formValues.longitude, kids.length, loadKids]
+    [formValues.latitude, formValues.longitude, fetchRecommendations]
   );
 
-  const handleActivityChange = useCallback((event: ChangeEvent<HTMLSelectElement>) => {
-    setSelectedActivity(event.target.value);
+  const handleLeaderboardChange = useCallback((event: ChangeEvent<HTMLSelectElement>) => {
+    setLeaderboardSort(event.target.value as LeaderboardSort);
   }, []);
 
-  const activities = useMemo(() => {
-    if (!kids.length) {
-      return [] as string[];
-    }
-    const uniqueActivities = new Set<string>();
-    kids.forEach((kid) => {
-      if (kid.favoriteActivity) {
-        uniqueActivities.add(kid.favoriteActivity);
-      }
-    });
-    return Array.from(uniqueActivities).sort((a, b) => a.localeCompare(b));
-  }, [kids]);
+  const handleFilterApply = useCallback(() => {
+    setFilterActivity(filterActivityInput);
+    setFilterMinAge(filterMinAgeInput);
+    setFilterMaxAge(filterMaxAgeInput);
+  }, [filterActivityInput, filterMinAgeInput, filterMaxAgeInput]);
 
-  const filteredKids = useMemo(() => {
-    if (!selectedActivity) {
-      return [] as Kid[];
-    }
-    return kids.filter((kid) => kid.favoriteActivity === selectedActivity);
-  }, [kids, selectedActivity]);
+  const handleFilterReset = useCallback(() => {
+    setFilterActivityInput('');
+    setFilterMinAgeInput('');
+    setFilterMaxAgeInput('');
+    setFilterActivity('');
+    setFilterMinAge('');
+    setFilterMaxAge('');
+  }, []);
 
   const containerStyle = useMemo(
     () => ({
@@ -214,6 +244,80 @@ export default function WorldMap() {
     }),
     []
   );
+  const activityOptions = useMemo(() => {
+    if (!recommendations) {
+      return [] as string[];
+    }
+    const uniqueActivities = new Set<string>();
+    recommendations.leaderboard.forEach((item) => {
+      uniqueActivities.add(item.activity);
+    });
+    return Array.from(uniqueActivities).sort((a, b) => a.localeCompare(b));
+  }, [recommendations]);
+
+  const currentPosition = useMemo(() => {
+    if (Array.isArray(mapPosition)) {
+      return { lat: mapPosition[0], lng: mapPosition[1] };
+    }
+    const candidate = mapPosition as LatLngLiteral & { lat?: number; lng?: number };
+    if (typeof candidate.lat === 'number' && typeof candidate.lng === 'number') {
+      return { lat: candidate.lat, lng: candidate.lng };
+    }
+    const lat = Number(formValues.latitude);
+    const lng = Number(formValues.longitude);
+    return { lat, lng };
+  }, [mapPosition, formValues.latitude, formValues.longitude]);
+
+  const nearbyFriendRecs = useMemo(() => {
+    if (!recommendations) {
+      return [] as FriendRecommendationEnvelope['friendRecommendations'];
+    }
+    const { lat, lng } = currentPosition;
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      return [];
+    }
+    return recommendations.friendRecommendations.filter((rec) => {
+      if (typeof rec.friendLatitude !== 'number' || typeof rec.friendLongitude !== 'number') {
+        return false;
+      }
+      return distanceKm(lat, lng, rec.friendLatitude, rec.friendLongitude) <= ONE_MILE_KM;
+    });
+  }, [recommendations, currentPosition]);
+
+  const friendMarkers = useMemo(
+    () =>
+      nearbyFriendRecs
+        .filter(
+          (rec) =>
+            typeof rec.friendLatitude === 'number' && Number.isFinite(rec.friendLatitude) &&
+            typeof rec.friendLongitude === 'number' && Number.isFinite(rec.friendLongitude)
+        )
+        .map((rec) => ({
+          friendId: rec.friendId,
+          friendName: rec.friendName ?? 'Playmate',
+          position: [rec.friendLatitude as number, rec.friendLongitude as number] as LatLngExpression,
+          headline: rec.headline ?? '',
+        })),
+    [nearbyFriendRecs]
+  );
+
+  const nearbyLeaderboard = useMemo<ActivityLeaderboardItem[]>(() => {
+    if (!recommendations) {
+      return [];
+    }
+    const { lat, lng } = currentPosition;
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      return [];
+    }
+    return recommendations.leaderboard.filter((item) => {
+      if (typeof item.friendLatitude !== 'number' || typeof item.friendLongitude !== 'number') {
+        return false;
+      }
+      return distanceKm(lat, lng, item.friendLatitude, item.friendLongitude) <= ONE_MILE_KM;
+    });
+  }, [recommendations, currentPosition]);
+
+  const playmates = recommendations?.playmates ?? [];
 
   return (
     <div style={containerStyle}>
@@ -237,6 +341,14 @@ export default function WorldMap() {
             Longitude: {formValues.longitude}
           </Popup>
         </Marker>
+        {friendMarkers.map((marker) => (
+          <Marker key={marker.friendId} position={marker.position}>
+            <Popup>
+              <div style={{ fontWeight: 600 }}>{marker.friendName}</div>
+              <div>{marker.headline}</div>
+            </Popup>
+          </Marker>
+        ))}
       </MapContainer>
 
       <PlaydatePoint
@@ -249,38 +361,155 @@ export default function WorldMap() {
         errorMessage={errorMessage}
       />
 
-      {hasSubmitted && (
-        <Section title="Find playmates by favourite activity">
+      {recommendations && friendMarkers.length === 0 && (
+        <div style={{ fontStyle: "italic" }}>
+          No nearby playdate spots within 1 mile yet. Try adjusting your location or inviting more friends.
+        </div>
+      )}
+
+      {recommendations && (
+        <Section title="Find playmates by criteria">
           <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "12px" }}>
+              <div>
+                <label htmlFor="playmate-activity" style={{ fontWeight: 600, marginRight: "8px" }}>
+                  Activity
+                </label>
+                <select
+                  id="playmate-activity"
+                  value={filterActivityInput}
+                  onChange={(event) => setFilterActivityInput(event.target.value)}
+                  style={{ padding: "8px 12px", borderRadius: "8px", border: "1px solid #bbb" }}
+                >
+                  <option value="">Any activity</option>
+                  {activityOptions.map((activity) => (
+                    <option key={activity} value={activity}>
+                      {activity}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label htmlFor="playmate-min-age" style={{ fontWeight: 600, marginRight: "8px" }}>
+                  Min age
+                </label>
+                <input
+                  id="playmate-min-age"
+                  type="number"
+                  min={0}
+                  value={filterMinAgeInput}
+                  onChange={(event) => setFilterMinAgeInput(event.target.value)}
+                  style={{ padding: "8px 12px", borderRadius: "8px", border: "1px solid #bbb", width: "120px" }}
+                />
+              </div>
+              <div>
+                <label htmlFor="playmate-max-age" style={{ fontWeight: 600, marginRight: "8px" }}>
+                  Max age
+                </label>
+                <input
+                  id="playmate-max-age"
+                  type="number"
+                  min={0}
+                  value={filterMaxAgeInput}
+                  onChange={(event) => setFilterMaxAgeInput(event.target.value)}
+                  style={{ padding: "8px 12px", borderRadius: "8px", border: "1px solid #bbb", width: "120px" }}
+                />
+              </div>
+              <div style={{ display: "flex", gap: "8px", alignItems: "flex-end" }}>
+                <button type="button" onClick={handleFilterApply} style={{ padding: "8px 16px" }}>
+                  Apply filters
+                </button>
+                <button type="button" onClick={handleFilterReset} style={{ padding: "8px 16px" }}>
+                  Reset
+                </button>
+              </div>
+            </div>
             <div>
-              <label htmlFor="activity-filter" style={{ fontWeight: 600, marginRight: "12px" }}>
-                Choose an activity:
+              {playmates.length === 0 ? (
+                <div>No playmates match the current filters yet.</div>
+              ) : (
+                <ul style={{ marginLeft: "18px", display: "grid", gap: "8px" }}>
+                  {playmates.map((playmate) => (
+                    <li key={playmate.kidId}>
+                      <strong>{playmate.kidName}</strong> ({playmate.age}) — {playmate.favoriteActivity} · Guardian: {playmate.guardianName}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </Section>
+      )}
+
+      {recommendations && (
+        <Section title="Nearby activity leaderboard">
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            <div>
+              <label htmlFor="leaderboard-sort" style={{ fontWeight: 600, marginRight: "12px" }}>
+                Sort by:
               </label>
               <select
-                id="activity-filter"
-                value={selectedActivity}
-                onChange={handleActivityChange}
+                id="leaderboard-sort"
+                value={leaderboardSort}
+                onChange={handleLeaderboardChange}
                 style={{ padding: "8px 12px", borderRadius: "8px", border: "1px solid #bbb" }}
               >
-                <option value="">Select an activity</option>
-                {activities.map((activity) => (
-                  <option key={activity} value={activity}>
-                    {activity}
-                  </option>
-                ))}
+                <option value="popularity">Popularity</option>
+                <option value="distance">Closest Friends</option>
+                <option value="alphabetical">Alphabetical</option>
               </select>
             </div>
-            {selectedActivity && filteredKids.length === 0 && (
-              <div>No kids match this activity yet. Invite more friends!</div>
+            {nearbyLeaderboard.length === 0 && (
+              <div>No activities within a 1 mile radius yet.</div>
             )}
-            {filteredKids.length > 0 && (
-              <div style={{ display: "grid", gap: "12px" }}>
-                {filteredKids.map((kid) => (
-                  <KidItem key={kid.id} kid={kid} />
+            {nearbyLeaderboard.length > 0 && (
+              <div style={{ display: "grid", gap: "8px" }}>
+                {nearbyLeaderboard.map((item) => (
+                  <div key={`${leaderboardSort}-${item.activity}`} style={{ borderBottom: '1px solid rgba(255,255,255,0.2)', paddingBottom: 6 }}>
+                    <div style={{ fontWeight: 600 }}>{item.activity}</div>
+                    <div style={{ fontSize: '0.9em' }}>
+                      {item.kidCount} kid{item.kidCount === 1 ? '' : 's'} enjoy this activity
+                      {item.avgDistanceKm != null && (
+                        <> · avg distance {item.avgDistanceKm} km</>
+                      )}
+                      {item.closestFriend && (
+                        <> · closest match: {item.closestFriend}</>
+                      )}
+                    </div>
+                  </div>
                 ))}
               </div>
             )}
           </div>
+        </Section>
+      )}
+
+      {recommendations && (
+        <Section title="Friends to visit next (within 1 mile)">
+          {nearbyFriendRecs.length === 0 ? (
+            <div>No nearby friend playdates yet. Invite more friends or adjust your location.</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+              {nearbyFriendRecs.map((friendRec) => {
+                const matches = friendRec.recommendations ?? [];
+                if (matches.length === 0) {
+                  return null;
+                }
+                return (
+                  <div key={friendRec.friendId}>
+                    <div style={{ fontWeight: 600 }}>{friendRec.headline ?? `Playdate ideas with ${friendRec.friendName ?? 'a friend'}`}</div>
+                    <ul style={{ marginLeft: "18px" }}>
+                      {matches.map((rec) => (
+                        <li key={`${friendRec.friendId}-${rec.kidId}`}>
+                          Match {rec.kidName} with {rec.matchName} — {rec.matchActivity} (score {rec.compatibilityScore}) · {rec.suggestedSlot}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </Section>
       )}
 
@@ -309,6 +538,49 @@ export default function WorldMap() {
                 </li>
               ))}
             </ul>
+          </div>
+        </Section>
+      )}
+
+      {recommendations && (
+        <Section title="Activity leaderboard">
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            <div>
+              <label htmlFor="leaderboard-sort" style={{ fontWeight: 600, marginRight: "12px" }}>
+                Sort by:
+              </label>
+              <select
+                id="leaderboard-sort"
+                value={leaderboardSort}
+                onChange={handleLeaderboardChange}
+                style={{ padding: "8px 12px", borderRadius: "8px", border: "1px solid #bbb" }}
+              >
+                <option value="popularity">Popularity</option>
+                <option value="distance">Closest Friends</option>
+                <option value="alphabetical">Alphabetical</option>
+              </select>
+            </div>
+            {nearbyLeaderboard.length === 0 && (
+              <div>No activities within a 1 mile radius yet.</div>
+            )}
+            {nearbyLeaderboard.length > 0 && (
+              <div style={{ display: "grid", gap: "8px" }}>
+                {nearbyLeaderboard.map((item) => (
+                  <div key={`${leaderboardSort}-${item.activity}`} style={{ borderBottom: '1px solid rgba(255,255,255,0.2)', paddingBottom: 6 }}>
+                    <div style={{ fontWeight: 600 }}>{item.activity}</div>
+                    <div style={{ fontSize: '0.9em' }}>
+                      {item.kidCount} kid{item.kidCount === 1 ? '' : 's'} enjoy this activity
+                      {item.avgDistanceKm != null && (
+                        <> · avg distance {item.avgDistanceKm} km</>
+                      )}
+                      {item.closestFriend && (
+                        <> · closest match: {item.closestFriend}</>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </Section>
       )}

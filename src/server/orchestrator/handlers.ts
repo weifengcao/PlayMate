@@ -28,20 +28,7 @@ agentOrchestrator.registerHandler('friend.ask', async (rawPayload) => {
   if (!Number.isFinite(askerId)) {
     throw new Error('A valid asker identifier is required.');
   }
-  const result = await sendFriendRequest(askerId, friendName);
-  await agentOrchestrator.submit({
-    type: 'friend.recommendations',
-    ownerId: askerId,
-    payload: { userId: askerId, friendId: result.friend.id },
-    maxAttempts: 2,
-  });
-  await agentOrchestrator.submit({
-    type: 'friend.recommendations',
-    ownerId: result.friend.id,
-    payload: { userId: result.friend.id, friendId: askerId },
-    maxAttempts: 2,
-  });
-  return result;
+  return sendFriendRequest(askerId, friendName);
 });
 
 agentOrchestrator.registerHandler('friend.setState', async (rawPayload) => {
@@ -89,9 +76,10 @@ agentOrchestrator.registerHandler('friend.recommendations', async (rawPayload) =
     throw new Error('Recommendation task requires both userId and friendId.');
   }
   const recommendations = await buildFriendRecommendations(userId, friendId);
-  if (!recommendations) {
+  if (!recommendations || !recommendations.recommendations || recommendations.recommendations.length === 0) {
     return {
-      message: 'No recommendations available yet. Add kids for both guardians to unlock suggestions.',
+      message: 'No friend matches yet. Add more playmate details and try again later.',
+      recommendations: [],
     };
   }
   return recommendations;
