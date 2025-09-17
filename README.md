@@ -1,19 +1,90 @@
 # PlayMate
 
-PlayMate connects parents in your area with similar schedules and kid ages for friendly, social playdates. Whether you're looking for a playmate for your child or want to meet new parent friends, PlayMate makes finding the perfect match easy and fun. Share your love for your kids while exploring new playdate locations with fellow parents nearby!
+PlayMate helps nearby parents coordinate fun, safe playdates by matching their kids by age, interests, and availability. The app delivers a full-stack experience that blends a React front end, an Express/Node back end, and a PostgreSQL database.
 
-This app represents a playdate-as-a-service startup. It has a full stack codebase with React, Node.js and postgres. It has the following features:
+## Features
+- Email-and-password authentication with secure session cookies
+- Kid profiles with ages and favourite activities
+- Interactive map for choosing or updating a personal playdate location
+- Friendship workflow (send requests, accept, ignore)
+- Playmate discovery by filtering kids who share an activity
+- Seed data for users, kids, and friendships so you can explore immediately
 
-* user authentications, both on client and server side.
-* each user has a list of kids.
-* each user can define a “playdate location” (GPS coordinates), which can be viewed in an interactive map.
-* each user can ask and accept/reject other users as friends.
-* the database contain some playdate data to analyze.
-* the back-end is an API you can test with the “API” tab.
+## Tech Stack
+- React 18 + Vite
+- TypeScript
+- Emotion for styling
+- Leaflet and react-leaflet for mapping
+- Express, Sequelize, and PostgreSQL
+- Nodemon for local development
 
-To log in:
+## Getting Started
 
-* user: jill, password: a
-* user: brad, password: b
-* user: cathy, password: c
-* user: dilb, password: d
+### Prerequisites
+- Node.js 18+ and npm
+- PostgreSQL running locally on `127.0.0.1:5432` with credentials `postgres / postgres`
+  - Adjust `src/server/initSeq.ts` if you use different connection details.
+
+### Installation
+```bash
+git clone <your-fork-or-repo-url>
+cd PlayMate
+npm install
+```
+
+### Database
+- Ensure PostgreSQL is running and accessible with the credentials above.
+- On first launch the app seeds starter data (users, kids, friendships) automatically.
+
+### Development Server
+```bash
+npm start
+```
+- Runs the Express API and the Vite dev server on **http://localhost:8080** with hot reloading.
+- Watch the terminal for “Listening on http://localhost:8080”.
+
+### Production Build
+```bash
+npm run build
+```
+- Outputs an optimized client bundle using Vite.
+
+## Sample Accounts
+- jill / a
+- brad / b
+- cathy / c
+- dilb / d
+
+## Key API Routes
+- `POST /auth/login` – authenticate and start a session
+- `GET /api/kids/mykids` – current guardian’s kids
+- `GET /api/playdate-point/coordinates` – fetch saved map coordinates
+- `POST /api/playdate-point/coordinates` – update map coordinates
+- `GET /api/friends/pending` – requests you sent
+- `GET /api/friends/askingforme` – requests you received
+- `POST /api/friends/ask` – send a friend request
+- `POST /api/friends/setstate` – accept or ignore a request
+
+## Project Structure
+```
+src/
+  client/             # React app (components, hooks, CSS)
+  server/
+    routes/           # Express API routes
+    middleware/       # Auth and request helpers
+    models/           # Sequelize models and seed helpers
+    vite-server.ts    # Express + Vite integration
+index.html            # Vite entry template
+```
+
+## Troubleshooting
+- **Blank map or missing tiles**: ensure Leaflet assets load and Postgres is running so user data can be fetched.
+- **Login fails**: verify Postgres credentials and that seed users exist (`populateDatabase` runs on startup).
+- **Port already in use**: stop other services on `8080` or update `src/server/vite-server.ts`.
+
+## Contributing
+1. Fork the repository and create a feature branch.
+2. Follow the coding conventions (TypeScript, ESLint defaults).
+3. Include clear commit messages and open a pull request describing your change.
+
+Enjoy building playful experiences with PlayMate!
