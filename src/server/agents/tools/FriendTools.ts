@@ -12,6 +12,11 @@ interface FriendStateResult {
   friendLink: { askerId: number; receiverId: number; state: number };
 }
 
+interface FriendDeleteResult {
+  message: string;
+  removedCount: number;
+}
+
 export async function sendFriendRequest(askerId: number, friendName: string): Promise<FriendRequestResult> {
   const pendingFriendName = friendName.trim();
   if (!pendingFriendName) {
@@ -77,5 +82,29 @@ export async function updateFriendState(receiverId: number, friendId: number, ne
       receiverId: friendLink.receiverId,
       state: friendLink.state,
     },
+  };
+}
+
+export async function deleteFriendship(userId: number, friendId: number): Promise<FriendDeleteResult> {
+  if (!Number.isInteger(friendId) || friendId <= 0) {
+    throw new Error('A valid friend identifier is required.');
+  }
+
+  const removedCount = await FriendLink.destroy({
+    where: {
+      [Op.or]: [
+        { askerId: userId, receiverId: friendId },
+        { askerId: friendId, receiverId: userId },
+      ],
+    },
+  });
+
+  if (removedCount === 0) {
+    throw new Error('No friendship found to delete.');
+  }
+
+  return {
+    message: 'Friendship removed.',
+    removedCount,
   };
 }

@@ -1,5 +1,5 @@
 import { agentOrchestrator } from './AgentOrchestrator';
-import { sendFriendRequest, updateFriendState } from '../agents/tools/FriendTools';
+import { sendFriendRequest, updateFriendState, deleteFriendship } from '../agents/tools/FriendTools';
 import { updatePlaydatePoint } from '../agents/tools/LocationTools';
 import { buildFriendRecommendations } from '../agents/tools/FriendRecommendationTools';
 
@@ -95,4 +95,14 @@ agentOrchestrator.registerHandler('friend.recommendations', async (rawPayload) =
     };
   }
   return recommendations;
+});
+
+agentOrchestrator.registerHandler('friend.delete', async (rawPayload) => {
+  const payload = rawPayload as { userId?: number; friendId?: number } | undefined;
+  const userId = typeof payload?.userId === 'number' ? payload.userId : NaN;
+  const friendId = typeof payload?.friendId === 'number' ? payload.friendId : NaN;
+  if (!Number.isFinite(userId) || !Number.isFinite(friendId)) {
+    throw new Error('Friend deletion requires both userId and friendId.');
+  }
+  return deleteFriendship(userId, friendId);
 });

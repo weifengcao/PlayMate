@@ -13,12 +13,16 @@ interface FriendItemProps {
   friend: Friend;
   showButtons: boolean;
   onUpdate: () => void;
+  allowDelete?: boolean;
+  onDelete?: (friendId: number) => Promise<void>;
 }
 
 export const FriendItem: FC<FriendItemProps> = ({
   friend,
   showButtons,
   onUpdate,
+  allowDelete = false,
+  onDelete,
 }) => {
   const handleAcceptEvent = useCallback(async () => {
     await setFriendState(friend.id, 1);
@@ -30,6 +34,14 @@ export const FriendItem: FC<FriendItemProps> = ({
     onUpdate();
   }, [friend.id, onUpdate]);
 
+  const handleDeleteEvent = useCallback(async () => {
+    if (!allowDelete || !onDelete) {
+      return;
+    }
+    await onDelete(friend.id);
+    onUpdate();
+  }, [allowDelete, onDelete, friend.id, onUpdate]);
+
   return (
     <div>
       - {friend.name}
@@ -38,6 +50,9 @@ export const FriendItem: FC<FriendItemProps> = ({
           <FriendButton onClick={handleAcceptEvent}>Accept</FriendButton>
           <FriendButton onClick={handleIgnoreEvent}>Ignore</FriendButton>
         </>
+      )}
+      {allowDelete && (
+        <FriendButton onClick={handleDeleteEvent}>Remove</FriendButton>
       )}
     </div>
   );

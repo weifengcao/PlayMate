@@ -7,6 +7,7 @@ PlayMate helps nearby parents coordinate fun, safe playdates by matching their k
 - Kid profiles with ages and favourite activities
 - Interactive map for choosing or updating a personal playdate location
 - Friendship workflow (send requests, accept, ignore)
+- Remove friends when connections change
 - Playmate discovery by filtering kids who share an activity
 - Seed data for users, kids, and friendships so you can explore immediately
 - Agent-powered orchestration with async task tracking, live updates, and feature-flagged recommendations

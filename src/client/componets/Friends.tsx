@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
   getFriendshipAsker,
   getFriendsConfirmed,
   getFriendsPending,
+  deleteFriend,
 } from "../api";
 import { Header } from "./Header";
 import { FriendItem } from "./FriendItem";
@@ -32,6 +33,14 @@ export const Friends = () => {
     fetchData();
   }, []);
 
+  const handleDeleteFriend = useCallback(async (friendId: number) => {
+    try {
+      await deleteFriend(friendId);
+    } catch (error) {
+      console.log("failed to delete friend", error);
+    }
+  }, []);
+
   return (
     <div>
       <Header>Friends</Header>
@@ -46,6 +55,8 @@ export const Friends = () => {
                   friend={friend}
                   showButtons={false}
                   onUpdate={fetchData}
+                  allowDelete={true}
+                  onDelete={handleDeleteFriend}
                 />
               ))}
             </div>

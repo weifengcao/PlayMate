@@ -185,3 +185,15 @@ export async function getAgentInbox(): Promise<AgentInboxItem<FriendRecommendati
 }
 
 export const subscribeToAllTaskUpdates = subscribeToAllTasks;
+
+export async function deleteFriend(friendId: number): Promise<void> {
+  const submission = await fetchApi<{ taskId: string }>("/api/friends/delete", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ friendId }),
+  });
+  if (!submission?.taskId) {
+    throw new Error('Unexpected response when submitting delete friend task.');
+  }
+  await waitForTaskResult(submission.taskId);
+}

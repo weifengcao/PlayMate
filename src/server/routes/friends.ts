@@ -128,4 +128,20 @@ router.post('/setstate', Verify, async (req, res) => {
   }
 });
 
+router.post('/delete', Verify, async (req, res) => {
+  try {
+    const user = (req as AuthenticatedRequest).user;
+    const friendId = Number(req.body.friendId);
+    const task = await agentOrchestrator.submit({
+      type: 'friend.delete',
+      payload: { userId: user.id, friendId },
+      ownerId: user.id,
+    });
+    res.status(202).json({ taskId: task.id, status: task.status });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'unknown error';
+    res.status(400).json({ message });
+  }
+});
+
 export default router
