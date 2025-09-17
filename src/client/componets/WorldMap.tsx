@@ -10,17 +10,19 @@ export default function WorldMap() {
   const [playdatePoint, setPlaydatePoint] = useState<LatLngExpression>([0, 0]);
 
   const fetchData = async () => {
-    const playdateJson = await getMyPlaydatePoint();
-    console.log("playdateJson", playdateJson);
-    setPlaydatePoint([playdateJson.playdate_latit, playdateJson.playdate_longi]);
-  };
-
-  useEffect(() => {
     try {
-      fetchData();
+      const playdateJson = await getMyPlaydatePoint();
+      setPlaydatePoint([
+        playdateJson.playdate_latit,
+        playdateJson.playdate_longi,
+      ]);
     } catch (err) {
       console.log("failed to fetch playdate point", err);
     }
+  };
+
+  useEffect(() => {
+    fetchData();
   }, []);
 
   return (

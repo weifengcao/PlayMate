@@ -12,16 +12,14 @@ export const Dashboard = () => {
 
   useEffect(() => {
     const fetchData = async () => {
-      const userKids = await getMyKids();
-      console.log(userKids);
-      setKids(userKids);
-      console.log("kids are set");
+      try {
+        const userKids = await getMyKids();
+        setKids(userKids);
+      } catch (err) {
+        console.log("failed to fetch kids", err);
+      }
     };
-    try {
-      fetchData();
-    } catch (err) {
-      console.log("failed to fetch kids", err);
-    }
+    fetchData();
   }, []);
 
   const handleSubmitEvent = useCallback(

@@ -1,5 +1,5 @@
 import { FC, FormEvent, useCallback, useState } from "react";
-import { AskForFriend } from "../api";
+import { askForFriend } from "../api";
 import { Section } from "./Section";
 import { ErrorMessage } from "./ErrorMessage";
 import { FormControl } from "./FormControl";

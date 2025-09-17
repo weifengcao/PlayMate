@@ -1,12 +1,5 @@
-export interface Kid {
-  id: number;
-  name: string;
-  favoriteActivity: string;
-  age: number;
-  guardianId: number;
-}
-
-export interface PlaydatePointResponse {
-  playdate_latit: number;
-  playdate_longi: number;
+export enum FriendshipState {
+  PENDING = 0,
+  ACCEPTED = 1,
+  REFUSED = 2,
 }

@@ -34,11 +34,12 @@ router.post('/login', async (req, res) => {
       });
       return;
     }
+    const isProduction = process.env.NODE_ENV === 'production';
     let options: CookieOptions = {
       maxAge: 20 * 60 * 1000, // would expire in 20 minutes
       httpOnly: true, // The cookie is only accessible by the web server
-      secure: true, 
-      sameSite: "None"
+      secure: isProduction,
+      sameSite: isProduction ? "None" : "Lax",
     };
     // generate session token for user
     const token = generateAccessJWT(user);

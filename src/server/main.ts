@@ -33,60 +33,7 @@ const start = async () => {
   app.use('/auth', AuthRoutes);
 
   sequelize.sync().then(async () => {
-
-    // TODO : this should go in a separate function
-
-    // Populating database with default data.
-    const userCount = await User.count();
-    if (userCount == 0) {
-      await User.create({
-        name: 'jill',
-        password: 'a',
-        email: 'jill@jungle.com',
-        playdate_latit: 51.51,
-        playdate_longi: -0.09,
-      });
-      await User.create({
-        name: 'brad',
-        password: 'b',
-        email: 'brad@foursfield.com',
-        playdate_latit: 51.505,
-        playdate_longi: -0.0888,
-      });
-    }
-    const kidCount = await Kid.count();
-    console.log("kidCount", kidCount);
-    if (kidCount == 0) {
-      console.log("must create kid");
-      await Kid.create({
-        name: 'Liam',
-        favoriteActivity: 'Soccer',
-        age: 7,
-        guardianId: 1,
-      });
-      await Kid.create({
-        name: 'Mia',
-        favoriteActivity: 'Painting',
-        age: 5,
-        guardianId: 1,
-      });      
-      await Kid.create({
-        name: 'Noah',
-        favoriteActivity: 'Lego building',
-        age: 6,
-        guardianId: 2,
-      });
-    }
-    const friendLinkCount = await FriendLink.count();
-    if (friendLinkCount == 0) {
-      await FriendLink.create({
-        askerId: 1,
-        receiverId: 2,
-        state: 0,
-      });
-    }
-    initData(User, bodyParser, FriendLink, Kid);
-    
+    await populateDatabase();
     serve()
   })
 

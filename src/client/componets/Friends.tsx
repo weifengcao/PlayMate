@@ -16,20 +16,20 @@ export const Friends = () => {
   const [friendsPending, setFriendsPending] = useState<Friend[]>([]);
 
   const fetchData = async () => {
-    const friendsConfirmed = await getFriendsConfirmed();
-    setFriendsConfirmed(friendsConfirmed);
-    const friendsAsking = await getFriendshipAsker();
-    setFriendsAsking(friendsAsking);
-    const friendsPending = await getFriendsPending();
-    setFriendsPending(friendsPending);
-  };
-
-  useEffect(() => {
     try {
-      fetchData();
+      const friendsConfirmed = await getFriendsConfirmed();
+      setFriendsConfirmed(friendsConfirmed);
+      const friendsAsking = await getFriendshipAsker();
+      setFriendsAsking(friendsAsking);
+      const friendsPending = await getFriendsPending();
+      setFriendsPending(friendsPending);
     } catch (err) {
       console.log("failed to fetch friends", err);
     }
+  };
+
+  useEffect(() => {
+    fetchData();
   }, []);
 
   return (
