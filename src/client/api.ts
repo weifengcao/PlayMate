@@ -1,4 +1,18 @@
-import { FriendshipState, Kid, PlaydateCoordinates, Friend } from "./types";
+import { FriendshipState, Kid, PlaydateCoordinates, Friend, PlaydateUpdatePayload, AgentInboxItem, FriendRecommendationPayload } from "./types";
+import { subscribeToTask, TaskUpdate, subscribeToAllTasks } from "./taskEvents";
+
+type TaskStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'dead-letter';
+
+interface TaskEnvelope<T = unknown> {
+  id: string;
+  status: TaskStatus;
+  type?: string;
+  attempts?: number;
+  maxAttempts?: number;
+  nextRunAt?: string;
+  result?: T;
+  error?: string;
+}
 
 async function fetchApi<T = unknown>(url: string, options: RequestInit = {}) {
   const resp = await fetch(url, {
@@ -33,6 +47,72 @@ async function fetchApi<T = unknown>(url: string, options: RequestInit = {}) {
   throw new Error(message);
 }
 
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function waitForTaskResult<T = unknown>(taskId: string, maxAttempts = 20, intervalMs = 300): Promise<T> {
+  let settled = false;
+  let attempt = 0;
+
+  return new Promise<T>((resolve, reject) => {
+    const resolveOnce = (value: T) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      cleanup();
+      resolve(value);
+    };
+
+    const rejectOnce = (error: Error) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      cleanup();
+      reject(error);
+    };
+
+    let unsubscribe: (() => void) | undefined;
+    const pollTask = async () => {
+      while (!settled && attempt < maxAttempts) {
+        try {
+          const task = await fetchApi<TaskEnvelope<T>>(`/api/tasks/${taskId}`);
+          if (task.status === 'completed') {
+            resolveOnce((task.result ?? {}) as T);
+            return;
+          }
+          if (task.status === 'failed' || task.status === 'dead-letter') {
+            rejectOnce(new Error(task.error || 'Task failed.'));
+            return;
+          }
+        } catch (error) {
+          rejectOnce(error instanceof Error ? error : new Error('Task polling failed.'));
+          return;
+        }
+        attempt += 1;
+        await delay(intervalMs);
+      }
+      if (!settled) {
+        rejectOnce(new Error('Task did not complete in time.'));
+      }
+    };
+
+    const cleanup = () => {
+      unsubscribe?.();
+    };
+
+    unsubscribe = subscribeToTask<T>(taskId, (update: TaskUpdate<T>) => {
+      if (update.status === 'completed') {
+        resolveOnce((update.result ?? {}) as T);
+      } else if (update.status === 'failed' || update.status === 'dead-letter') {
+        rejectOnce(new Error(update.error || 'Task failed.'));
+      }
+    });
+
+    pollTask();
+  });
+}
+
 export async function getMyKids(): Promise<Kid[]> {
   return fetchApi<Kid[]>("/api/kids/mykids");
 }
@@ -44,12 +124,16 @@ export async function getMyPlaydatePoint(): Promise<PlaydateCoordinates> {
 export async function setMyPlaydatePoint(
   latitude: number,
   longitude: number
-): Promise<PlaydateCoordinates> {
-  return fetchApi<PlaydateCoordinates>("/api/playdate-point/coordinates", {
+): Promise<PlaydateUpdatePayload> {
+  const submission = await fetchApi<{ taskId: string }>("/api/playdate-point/coordinates", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ playdate_latit: latitude, playdate_longi: longitude }),
   });
+  if (!submission?.taskId) {
+    throw new Error('Unexpected response when submitting location task.');
+  }
+  return waitForTaskResult<PlaydateUpdatePayload>(submission.taskId);
 }
 
 export async function getAllKids(): Promise<Kid[]> {
@@ -72,17 +156,32 @@ export async function setFriendState(
   friendId: number,
   state: FriendshipState
 ): Promise<void> {
-  await fetchApi("/api/friends/setstate", {
+  const submission = await fetchApi<{ taskId: string }>("/api/friends/setstate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ friendId: friendId, friendshipState: state }),
   });
+  if (!submission?.taskId) {
+    throw new Error('Unexpected response when submitting friendship task.');
+  }
+  await waitForTaskResult(submission.taskId);
 }
 
 export async function askForFriend(friendname: string): Promise<void> {
-  await fetchApi("/api/friends/ask", {
+  const submission = await fetchApi<{ taskId: string }>("/api/friends/ask", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ friendname: friendname }),
   });
+  if (!submission?.taskId) {
+    throw new Error('Unexpected response when submitting friend request task.');
+  }
+  await waitForTaskResult(submission.taskId);
 }
+
+export async function getAgentInbox(): Promise<AgentInboxItem<FriendRecommendationPayload>[]> {
+  const response = await fetchApi<{ items: AgentInboxItem<FriendRecommendationPayload>[] }>("/api/tasks/inbox");
+  return response.items ?? [];
+}
+
+export const subscribeToAllTaskUpdates = subscribeToAllTasks;

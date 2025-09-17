@@ -1,8 +1,6 @@
 import { DataTypes, Model, Sequelize, Optional } from 'sequelize';
 import jwt from 'jsonwebtoken';
-
-// TODO : put that in an env var, or in a common config file.
-const SECRET_ACCESS_TOKEN = 'abcdef0123456789';
+import { appConfig } from '../config/env';
 
 // Define the attributes for the User model
 interface UserAttributes {
@@ -67,7 +65,7 @@ export function generateAccessJWT(user: User) {
   let payload = {
     id: user.id,
   };
-  return jwt.sign(payload, SECRET_ACCESS_TOKEN, {
+  return jwt.sign(payload, appConfig.jwtSecret, {
     expiresIn: '20m',
   });
 }

@@ -1,12 +1,13 @@
 import { Sequelize } from 'sequelize'
+import { appConfig } from './config/env'
 
 const sequelize = new Sequelize({
-  dialect: 'postgres',
-  database: 'postgres',
-  username: 'postgres',
-  password: 'postgres',
-  host: '127.0.0.1',
-  port: 5432
+  dialect: appConfig.db.dialect as 'postgres',
+  database: appConfig.db.database,
+  username: appConfig.db.username,
+  password: appConfig.db.password,
+  host: appConfig.db.host,
+  port: appConfig.db.port,
 })
 
 export default sequelize

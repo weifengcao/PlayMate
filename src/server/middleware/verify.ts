@@ -2,9 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import { AuthenticatedRequest } from './AuthenticatedRequest';
 import { User } from "../models/User";
 import jwt, { JwtPayload } from "jsonwebtoken";
-
-// TODO : put that in an env var, or in a common config file.
-const SECRET_ACCESS_TOKEN = 'abcdef0123456789';
+import { appConfig } from "../config/env";
 
 interface CustomJwtPayload extends JwtPayload {
   id: number;
@@ -33,7 +31,7 @@ export async function Verify(req: Request, res: Response, next: NextFunction): P
         // Verify using jwt to see if token has been tampered with or if it has expired.
         let decoded: string | jwt.JwtPayload | undefined;
         try {
-            decoded = jwt.verify(cookie, SECRET_ACCESS_TOKEN);
+            decoded = jwt.verify(cookie, appConfig.jwtSecret);
         } catch (err) {
             if (err instanceof jwt.TokenExpiredError) {
                 res.status(401).json({ message: "Session has expired. Please login" });

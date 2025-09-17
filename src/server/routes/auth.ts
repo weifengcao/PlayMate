@@ -48,7 +48,7 @@ router.post('/login', async (req, res) => {
       maxAge: 20 * 60 * 1000, // would expire in 20 minutes
       httpOnly: true, // The cookie is only accessible by the web server
       secure: isProduction,
-      sameSite: isProduction ? "None" : "Lax",
+      sameSite: isProduction ? "none" : "lax",
     };
     // generate session token for user
     const token = generateAccessJWT(user);

@@ -7,6 +7,7 @@ import {
   useCallback,
 } from "react";
 import { useNavigate } from "react-router-dom";
+import { shutdownTaskEvents } from "../taskEvents";
 
 export interface AuthContextType {
   token: string | null;
@@ -85,6 +86,7 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
     console.log("response is ok: ", response.ok);
     setUser(null);
     setToken(null);
+    shutdownTaskEvents();
     localStorage.removeItem("site");
     navigate("/login");
   }, [navigate]);

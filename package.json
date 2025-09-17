@@ -5,7 +5,8 @@
   "main": "src/server/main.ts",
   "scripts": {
     "start": "nodemon",
-    "build": "vite build"
+    "build": "vite build",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@emotion/react": "^11.13.3",

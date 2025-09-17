@@ -7,7 +7,7 @@ import {
   useMapEvents,
 } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
-import { LatLngExpression, LatLngLiteral } from "leaflet";
+import { LatLngExpression, LatLngLiteral, LeafletMouseEvent } from "leaflet";
 
 import { Header } from "./Header";
 import { Section } from "./Section";
@@ -18,13 +18,13 @@ import {
   setMyPlaydatePoint,
 } from "../api";
 import { PlaydatePoint } from "./PlaydatePoint";
-import { Kid, PlaydateCoordinates } from "../types";
+import { Kid, PlaydateCoordinates, AvailabilityPlan, LocalInsight } from "../types";
 
 const DEFAULT_POSITION: LatLngLiteral = { lat: 51.505, lng: -0.09 };
 
 const MapClickHandler = ({ onSelect }: { onSelect: (coords: LatLngLiteral) => void }) => {
   useMapEvents({
-    click(event) {
+    click(event: LeafletMouseEvent) {
       onSelect({ lat: event.latlng.lat, lng: event.latlng.lng });
     },
   });
@@ -48,6 +48,8 @@ export default function WorldMap() {
   const [hasSubmitted, setHasSubmitted] = useState(false);
   const [kids, setKids] = useState<Kid[]>([]);
   const [selectedActivity, setSelectedActivity] = useState<string>("");
+  const [availabilityPlan, setAvailabilityPlan] = useState<AvailabilityPlan | null>(null);
+  const [localInsight, setLocalInsight] = useState<LocalInsight | null>(null);
 
   const fetchLocation = useCallback(async () => {
     try {
@@ -143,13 +145,15 @@ export default function WorldMap() {
       try {
         const updated = await setMyPlaydatePoint(parsedLat, parsedLng);
         if (updated) {
-          setMapPosition([updated.playdate_latit, updated.playdate_longi]);
+          setMapPosition([updated.coordinates.playdate_latit, updated.coordinates.playdate_longi]);
           setFormValues({
-            latitude: updated.playdate_latit.toFixed(5),
-            longitude: updated.playdate_longi.toFixed(5),
+            latitude: updated.coordinates.playdate_latit.toFixed(5),
+            longitude: updated.coordinates.playdate_longi.toFixed(5),
           });
+          setAvailabilityPlan(updated.availabilityPlan ?? null);
+          setLocalInsight(updated.localInsight ?? null);
         }
-        setStatusMessage("Playdate location saved.");
+        setStatusMessage(updated?.message ?? "Playdate location saved.");
         setHasSubmitted(true);
         if (kids.length === 0) {
           await loadKids();
@@ -276,6 +280,35 @@ export default function WorldMap() {
                 ))}
               </div>
             )}
+          </div>
+        </Section>
+      )}
+
+      {hasSubmitted && availabilityPlan && availabilityPlan.suggestions.length > 0 && (
+        <Section title={availabilityPlan.message}>
+          <div style={{ display: "grid", gap: "12px" }}>
+            {availabilityPlan.suggestions.map((suggestion) => (
+              <div key={`${suggestion.kidName}-${suggestion.suggestedDay}-${suggestion.suggestedSlot}`}>
+                <strong>{suggestion.kidName}</strong> → {suggestion.suggestedDay} {suggestion.suggestedSlot}
+                <br />
+                Suggested focus: {suggestion.activityHint}
+              </div>
+            ))}
+          </div>
+        </Section>
+      )}
+
+      {hasSubmitted && localInsight && (
+        <Section title={localInsight.headline}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+            <div>{localInsight.summary}</div>
+            <ul style={{ marginLeft: "18px" }}>
+              {localInsight.actions.map((action) => (
+                <li key={action.label}>
+                  <strong>{action.label}:</strong> {action.description}
+                </li>
+              ))}
+            </ul>
           </div>
         </Section>
       )}

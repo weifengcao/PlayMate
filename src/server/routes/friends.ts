@@ -3,7 +3,7 @@ import { Verify } from '../middleware/verify'
 import { AuthenticatedRequest } from '../middleware/AuthenticatedRequest'
 import { User } from '../models/User'
 import { FriendLink } from '../models/FriendLink'
-import { friendSetState } from './friend_setstate'
+import { agentOrchestrator } from '../orchestrator/AgentOrchestrator'
 import { Op } from 'sequelize';
 
 const router = Router()
@@ -66,7 +66,9 @@ router.get('/confirmed', Verify, async (req, res) => {
         attributes: ['id', 'name'],
       }]
     });
-    const friendsFromMe2 = friendsFromMe1.map(link => link.receiver);
+    const friendsFromMe2 = friendsFromMe1
+      .map(link => link.receiver)
+      .filter((friend): friend is User => Boolean(friend));
     const friendsFromOther1 = await FriendLink.findAll({
       where: {receiverId: user.id, state: 1},
       include: [{
@@ -76,10 +78,13 @@ router.get('/confirmed', Verify, async (req, res) => {
         attributes: ['id', 'name'],
       }]
     });
-    const friendsFromOther2 = friendsFromOther1.map(link => link.asker);
-    //const mergedFriends = [...friendsFromMe2, ...friendsFromOther2];
-    const mergedFriends = Array.from(new Set([...friendsFromMe2, ...friendsFromOther2].map(f => f.id)))
-  .map(id => [...friendsFromMe2, ...friendsFromOther2].find(f => f.id === id));
+    const friendsFromOther2 = friendsFromOther1
+      .map(link => link.asker)
+      .filter((friend): friend is User => Boolean(friend));
+    const combined = [...friendsFromMe2, ...friendsFromOther2];
+    const mergedFriends = Array.from(new Set(combined.map(f => f.id)))
+      .map(id => combined.find(f => f.id === id))
+      .filter((friend): friend is User => Boolean(friend));
     res.json(mergedFriends);
   } catch (error) {
     if (error instanceof Error) {
@@ -93,76 +98,34 @@ router.get('/confirmed', Verify, async (req, res) => {
 router.post('/ask', Verify, async (req, res) => {
   try {
     const user = (req as AuthenticatedRequest).user;
-    const pendingFriendName = typeof req.body.friendname === 'string' ? req.body.friendname.trim() : '';
-    if (!pendingFriendName) {
-      res.status(400).json({
-        status: "failed",
-        data: [],
-        message: "Friend name is required.",
-      });
-      return;
-    }
-    const friend = await User.findOne({ where: {name: pendingFriendName}});
-    if (!friend) {
-      res.status(404).json({
-        status: "failed",
-        data: [],
-        message: "Cannot ask this user as friend.",
-      });
-      return;
-    }
-    if (friend.id === user.id) {
-      res.status(400).json({
-        status: "failed",
-        data: [],
-        message: "You cannot send a friend request to yourself.",
-      });
-      return;
-    }
-    console.log(friend);
-    /*
-    const friendLink = await FriendLink.findOne({
-      where: {askerId: user.id, receiverId: friend.id}
+    const friendname = typeof req.body.friendname === 'string' ? req.body.friendname : '';
+    const task = await agentOrchestrator.submit({
+      type: 'friend.ask',
+      payload: { askerId: user.id, friendName: friendname },
+      ownerId: user.id,
     });
-    */
-    const friendLink = await FriendLink.findOne({
-      where: {
-        [Op.or]: [
-          { askerId: user.id, receiverId: friend.id },
-          { askerId: friend.id, receiverId: user.id }
-        ]
-      }
-    });
-    if (friendLink) {
-      res.status(401).json({
-        status: "failed",
-        data: [],
-        message: "You already asked this user as friend.",
-      });
-      return;
-    }
-    console.log("creating friend link", user.id, " ", friend.id);
-    await FriendLink.create({
-      askerId: user.id,
-      receiverId: friend.id,
-      state: 0,
-    });
-    res.status(201).json({
-      status: "success",
-      data: [{ id: friend.id, name: friend.name }],
-      message: "Friend request sent.",
-    });
+    res.status(202).json({ taskId: task.id, status: task.status });
   } catch (error) {
-    if (error instanceof Error) {
-      res.status(500).send(error.message);
-    } else {
-      res.status(500).send("unknown error");
-    }
+    const message = error instanceof Error ? error.message : 'unknown error';
+    res.status(400).json({ message });
   }
 });
 
 router.post('/setstate', Verify, async (req, res) => {
-  return friendSetState(req, res);
+  try {
+    const user = (req as AuthenticatedRequest).user;
+    const friendId = Number(req.body.friendId);
+    const friendshipState = Number(req.body.friendshipState);
+    const task = await agentOrchestrator.submit({
+      type: 'friend.setState',
+      payload: { receiverId: user.id, friendId, state: friendshipState },
+      ownerId: user.id,
+    });
+    res.status(202).json({ taskId: task.id, status: task.status });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'unknown error';
+    res.status(400).json({ message });
+  }
 });
 
 export default router
