@@ -1,12 +1,31 @@
 import { FC, useCallback } from "react";
+import styled from "@emotion/styled";
 import { setFriendState } from "../api";
 import { Friend } from "../types";
-import styled from "@emotion/styled";
 
-const FriendButton = styled.button({
-  fontSize: "0.95em",
-  padding: "4px 10px",
-  margin: "3px 0 2px 30px",
+const FriendCard = styled.article({
+  display: "flex",
+  flexWrap: "wrap",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 12,
+  background: "var(--color-surface-solid)",
+  borderRadius: "var(--border-radius-sm)",
+  padding: "16px 20px",
+  boxShadow: "var(--shadow-soft)",
+  border: "1px solid rgba(107, 91, 255, 0.08)",
+});
+
+const FriendName = styled.span({
+  fontWeight: 600,
+  color: "var(--color-text-primary)",
+  fontSize: "1rem",
+});
+
+const ActionGroup = styled.div({
+  display: "flex",
+  flexWrap: "wrap",
+  gap: 8,
 });
 
 interface FriendItemProps {
@@ -43,17 +62,25 @@ export const FriendItem: FC<FriendItemProps> = ({
   }, [allowDelete, onDelete, friend.id, onUpdate]);
 
   return (
-    <div>
-      - {friend.name}
-      {showButtons && (
-        <>
-          <FriendButton onClick={handleAcceptEvent}>Accept</FriendButton>
-          <FriendButton onClick={handleIgnoreEvent}>Ignore</FriendButton>
-        </>
-      )}
-      {allowDelete && (
-        <FriendButton onClick={handleDeleteEvent}>Remove</FriendButton>
-      )}
-    </div>
+    <FriendCard>
+      <FriendName>{friend.name}</FriendName>
+      <ActionGroup>
+        {showButtons && (
+          <>
+            <button type="button" onClick={handleAcceptEvent}>
+              Accept
+            </button>
+            <button type="button" onClick={handleIgnoreEvent}>
+              Ignore
+            </button>
+          </>
+        )}
+        {allowDelete && (
+          <button type="button" onClick={handleDeleteEvent}>
+            Remove
+          </button>
+        )}
+      </ActionGroup>
+    </FriendCard>
   );
 };

@@ -21,31 +21,53 @@ const buildUrl = (path: string) => {
   return path.startsWith("/") ? path : `/${path}`;
 };
 
+type LoginSuccess = {
+  status: "success";
+  name: string;
+};
+
+type MfaChallenge = {
+  status: "mfa_required";
+  userId: number;
+  email: string;
+  name: string;
+  debugCode?: string;
+};
+
+export type LoginResult = LoginSuccess | MfaChallenge;
+
 export interface AuthContextType {
   token: string | null;
   user: string | null;
-  loginAction: (data: { username: string; password: string }) => void;
+  loginAction: (data: { identifier: string; password: string }) => Promise<LoginResult>;
+  signUp: (data: { name: string; email: string; password: string }) => Promise<LoginResult>;
+  verifyMfa: (data: { userId: number; code: string }) => Promise<LoginResult>;
+  resendMfa: (userId: number) => Promise<MfaChallenge>;
+  loginWithSocial: (data: { provider: string; email: string; name?: string }) => Promise<LoginResult>;
   logOut: () => void;
 }
+
+const resolvedLogin: LoginSuccess = { status: "success", name: "" };
 
 const AuthContext = createContext<AuthContextType>({
   token: null,
   user: null,
-  loginAction: () => {},
+  loginAction: async () => resolvedLogin,
+  signUp: async () => resolvedLogin,
+  verifyMfa: async () => resolvedLogin,
+  resendMfa: async () => ({ status: "mfa_required", userId: 0, email: "", name: "" }),
+  loginWithSocial: async () => resolvedLogin,
   logOut: () => {},
 });
 
 export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<string | null>(
-    localStorage.getItem("site") || ""
-  );
-  const [token, setToken] = useState<string | null>(
-    localStorage.getItem("site") || ""
-  );
+  const storedUser = localStorage.getItem("site");
+  const [user, setUser] = useState<string | null>(storedUser);
+  const [token, setToken] = useState<string | null>(storedUser);
   const navigate = useNavigate();
 
   const loginAction = useCallback(
-    async (data: { username: string; password: string }) => {
+    async (data: { identifier: string; password: string }): Promise<LoginResult> => {
       try {
         const response = await fetch(buildUrl("/auth/login"), {
           credentials: "include",
@@ -57,27 +79,168 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
           body: JSON.stringify(data),
         });
         const res = await response.json();
-        console.log("login response is: ", res);
-        console.log("response is ok: ", response.ok);
-        if (response.ok) {
-          const token = response.headers.get("set-cookie");
-          console.log("token credz: ", token);
-          for (const h of response.headers) {
-            console.log("response truc: ", h);
-          }
-          // The token and the user name are the same.
-          // I wanted to put the cookie, but I can't
-          // because it is HTTP-only. So I just put the name.
-          setUser(res.data[0].name);
-          setToken(res.data[0].name);
-          localStorage.setItem("site", res.data[0].name);
-          navigate("/");
-          return;
+        if (response.status === 202 && res.status === "mfa_required") {
+          return {
+            status: "mfa_required",
+            userId: res.data[0].userId,
+            email: res.data[0].email,
+            name: res.data[0].name,
+            debugCode: res.debugCode,
+          };
         }
-        console.log("throwing an error because login failed");
-        throw new Error(res.message);
+
+        if (response.ok) {
+          const userName = res.data?.[0]?.name ?? "";
+          setUser(userName);
+          setToken(userName);
+          localStorage.setItem("site", userName);
+          navigate("/");
+          return { status: "success", name: userName };
+        }
+
+        throw new Error(res.message ?? "Unable to sign in.");
       } catch (err) {
         console.error(err);
+        throw err;
+      }
+    },
+    [navigate]
+  );
+
+  const verifyMfa = useCallback(
+    async (data: { userId: number; code: string }): Promise<LoginResult> => {
+      try {
+        const response = await fetch(buildUrl("/auth/mfa/verify"), {
+          credentials: "include",
+          method: "POST",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(data),
+        });
+        const res = await response.json();
+
+        if (response.ok) {
+          const userName = res.data?.[0]?.name ?? "";
+          setUser(userName);
+          setToken(userName);
+          localStorage.setItem("site", userName);
+          navigate("/");
+          return { status: "success", name: userName };
+        }
+
+        throw new Error(res.message ?? "Unable to verify code.");
+      } catch (err) {
+        console.error(err);
+        throw err;
+      }
+    },
+    [navigate]
+  );
+
+  const resendMfa = useCallback(async (userId: number): Promise<MfaChallenge> => {
+    try {
+      const response = await fetch(buildUrl("/auth/mfa/resend"), {
+        credentials: "include",
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ userId }),
+      });
+      const res = await response.json();
+
+      if (response.status === 202 && res.status === "mfa_required") {
+        return {
+          status: "mfa_required",
+          userId: res.data[0].userId,
+          email: res.data[0].email,
+          name: res.data[0].name,
+          debugCode: res.debugCode,
+        };
+      }
+
+      throw new Error(res.message ?? "Unable to resend code.");
+    } catch (err) {
+      console.error(err);
+      throw err;
+    }
+  }, []);
+
+  const loginWithSocial = useCallback(
+    async (data: { provider: string; email: string; name?: string }): Promise<LoginResult> => {
+      try {
+        const response = await fetch(buildUrl("/auth/login/social"), {
+          credentials: "include",
+          method: "POST",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(data),
+        });
+        const res = await response.json();
+
+        if (response.ok) {
+          const userName = res.data?.[0]?.name ?? "";
+          setUser(userName);
+          setToken(userName);
+          localStorage.setItem("site", userName);
+          navigate("/");
+          return { status: "success", name: userName };
+        }
+
+        throw new Error(res.message ?? "Unable to sign in with provider.");
+      } catch (err) {
+        console.error(err);
+        throw err;
+      }
+    },
+    [navigate]
+  );
+
+  const signUp = useCallback(
+    async (data: { name: string; email: string; password: string }): Promise<LoginResult> => {
+      try {
+        const response = await fetch(buildUrl("/auth/signup"), {
+          credentials: "include",
+          method: "POST",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(data),
+        });
+        const res = await response.json();
+
+        const isMfaResponse =
+          (response.status === 201 || response.status === 202) && res.status === "mfa_required";
+
+        if (isMfaResponse) {
+          return {
+            status: "mfa_required",
+            userId: res.data[0].userId,
+            email: res.data[0].email,
+            name: res.data[0].name,
+            debugCode: res.debugCode,
+          };
+        }
+
+        if (response.ok) {
+          const userName = res.data?.[0]?.name ?? "";
+          setUser(userName);
+          setToken(userName);
+          localStorage.setItem("site", userName);
+          navigate("/");
+          return { status: "success", name: userName };
+        }
+
+        throw new Error(res.message ?? "Unable to sign up.");
+      } catch (err) {
+        console.error(err);
+        throw err;
       }
     },
     [navigate]
@@ -104,7 +267,9 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
   }, [navigate]);
 
   return (
-    <AuthContext.Provider value={{ token, user, loginAction, logOut }}>
+    <AuthContext.Provider
+      value={{ token, user, loginAction, signUp, verifyMfa, resendMfa, loginWithSocial, logOut }}
+    >
       {children}
     </AuthContext.Provider>
   );

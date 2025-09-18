@@ -10,10 +10,13 @@ interface UserAttributes {
   email: string;
   playdate_latit: number;
   playdate_longi: number;
+  mfaVerified: boolean;
+  lastLoginAt: Date | null;
 }
 
 // Define a type for optional attributes during creation
-interface UserCreationAttributes extends Optional<UserAttributes, "id"> {}
+interface UserCreationAttributes
+  extends Optional<UserAttributes, "id" | "mfaVerified" | "lastLoginAt"> {}
 
 // Extend the Sequelize Model class with the attributes
 export class User extends Model<UserAttributes, UserCreationAttributes> implements UserAttributes {
@@ -23,6 +26,8 @@ export class User extends Model<UserAttributes, UserCreationAttributes> implemen
   declare email: string;
   declare playdate_latit: number;
   declare playdate_longi: number;
+  declare mfaVerified: boolean;
+  declare lastLoginAt: Date | null;
 
   // Timestamps (optional, depending on your configuration)
   declare readonly createdAt: Date;
@@ -55,6 +60,15 @@ export function initUser(sequelize: Sequelize) {
       },
       playdate_longi: {
         type: DataTypes.FLOAT,
+      },
+      mfaVerified: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+      },
+      lastLoginAt: {
+        type: DataTypes.DATE,
+        allowNull: true,
       },
     },
     { sequelize, modelName: 'user' }

@@ -14,6 +14,7 @@ import TaskRoutes from './routes/tasks'
 import TaskEventRoutes from './routes/task_events'
 import RecommendationRoutes from './routes/recommendations'
 import AuthRoutes from './routes/auth'
+import UserRoutes from './routes/users'
 import { populateDatabase, ensureDefaultUsers } from './initData'
 
 import './orchestrator/handlers'
@@ -74,9 +75,10 @@ const start = async () => {
   app.use('/api/tasks', TaskRoutes);
   app.use('/api/task-events', TaskEventRoutes);
   app.use('/api/recommendations', RecommendationRoutes);
+  app.use('/api/users', UserRoutes);
   app.use('/auth', AuthRoutes);
 
-  await sequelize.sync();
+  await sequelize.sync({ alter: true });
   await populateDatabase();
   await ensureDefaultUsers();
   agentTaskWorker.start();

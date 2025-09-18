@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import styled from "@emotion/styled";
 import {
   getFriendshipAsker,
   getFriendsConfirmed,
@@ -10,6 +11,32 @@ import { FriendItem } from "./FriendItem";
 import { FriendAsk } from "./FriendAsk";
 import { Friend } from "../types";
 import { Section } from "./Section";
+import { Page } from "./Page";
+
+const FriendsPage = styled(Page)({
+  gap: 24,
+});
+
+const SectionContent = styled.div({
+  display: "flex",
+  flexDirection: "column",
+  gap: 14,
+});
+
+const IntroCopy = styled.p({
+  margin: 0,
+  color: "var(--color-text-muted)",
+  fontWeight: 500,
+});
+
+const BackLink = styled.a({
+  alignSelf: "flex-start",
+  fontWeight: 600,
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 6,
+  color: "var(--color-primary)",
+});
 
 export const Friends = () => {
   const [friendsConfirmed, setFriendsConfirmed] = useState<Friend[]>([]);
@@ -41,70 +68,74 @@ export const Friends = () => {
     }
   }, []);
 
+  const hasConnections =
+    friendsConfirmed.length + friendsAsking.length + friendsPending.length > 0;
+
   return (
-    <div>
+    <FriendsPage>
       <Header>Friends</Header>
+      <IntroCopy>
+        Manage your trusted circle, respond to new requests, and invite more
+        guardians to join in.
+      </IntroCopy>
+      {!hasConnections && (
+        <Section title="No connections yet">
+          <SectionContent>
+            <IntroCopy>
+              Send an invite to start your network. The more trusted guardians
+              you add, the easier it is to find perfect playmates.
+            </IntroCopy>
+          </SectionContent>
+        </Section>
+      )}
       {friendsConfirmed.length > 0 && (
-        <>
-          <br />
-          <Section title={`Friends: ${friendsConfirmed.length}`}>
-            <div>
-              {friendsConfirmed.map((friend) => (
-                <FriendItem
-                  key={friend.id}
-                  friend={friend}
-                  showButtons={false}
-                  onUpdate={fetchData}
-                  allowDelete={true}
-                  onDelete={handleDeleteFriend}
-                />
-              ))}
-            </div>
-          </Section>
-        </>
+        <Section title={`Friends: ${friendsConfirmed.length}`}>
+          <SectionContent>
+            {friendsConfirmed.map((friend) => (
+              <FriendItem
+                key={friend.id}
+                friend={friend}
+                showButtons={false}
+                onUpdate={fetchData}
+                allowDelete={true}
+                onDelete={handleDeleteFriend}
+              />
+            ))}
+          </SectionContent>
+        </Section>
       )}
       {friendsAsking.length > 0 && (
-        <>
-          <br />
-          <Section
-            title={`Persons asking to be your friend: ${friendsAsking.length}`}
-          >
-            <div>
-              {friendsAsking.map((friend) => (
-                <FriendItem
-                  key={friend.id}
-                  friend={friend}
-                  showButtons={true}
-                  onUpdate={fetchData}
-                />
-              ))}
-            </div>
-          </Section>
-        </>
+        <Section
+          title={`Requests waiting for you: ${friendsAsking.length}`}
+        >
+          <SectionContent>
+            {friendsAsking.map((friend) => (
+              <FriendItem
+                key={friend.id}
+                friend={friend}
+                showButtons={true}
+                onUpdate={fetchData}
+              />
+            ))}
+          </SectionContent>
+        </Section>
       )}
       {friendsPending.length > 0 && (
-        <>
-          <br />
-          <Section
-            title={`Persons you asked as friend: ${friendsPending.length}`}
-          >
-            <div>
-              {friendsPending.map((friend) => (
-                <FriendItem
-                  key={friend.id}
-                  friend={friend}
-                  showButtons={false}
-                  onUpdate={fetchData}
-                />
-              ))}
-            </div>
-          </Section>
-        </>
+        <Section title={`Invites you have sent: ${friendsPending.length}`}>
+          <SectionContent>
+            {friendsPending.map((friend) => (
+              <FriendItem
+                key={friend.id}
+                friend={friend}
+                showButtons={false}
+                onUpdate={fetchData}
+              />
+            ))}
+          </SectionContent>
+        </Section>
       )}
-      <br />
       <FriendAsk onUpdate={fetchData} />
-      <br />
-      <a href="/">Back to dashboard</a>
-    </div>
+      <BackLink href="/">Back to dashboard</BackLink>
+    </FriendsPage>
   );
 };

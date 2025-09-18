@@ -13,6 +13,8 @@ export async function populateDatabase() {
       email: 'jill@jungle.com',
       playdate_latit: 51.51,
       playdate_longi: -0.09,
+      mfaVerified: true,
+      lastLoginAt: new Date(),
     });
     await User.create({
       name: 'brad',
@@ -20,6 +22,8 @@ export async function populateDatabase() {
       email: 'brad@foursfield.com',
       playdate_latit: 51.505,
       playdate_longi: -0.0888,
+      mfaVerified: true,
+      lastLoginAt: new Date(),
     });
   }
 

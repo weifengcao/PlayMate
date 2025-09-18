@@ -1,8 +1,20 @@
 import { FC, FormEvent, useCallback, useState } from "react";
+import styled from "@emotion/styled";
 import { askForFriend } from "../api";
 import { Section } from "./Section";
 import { ErrorMessage } from "./ErrorMessage";
 import { FormControl } from "./FormControl";
+
+const FriendAskForm = styled.form({
+  display: "flex",
+  flexDirection: "column",
+  gap: 16,
+});
+
+const FriendAskCopy = styled.p({
+  margin: 0,
+  color: "var(--color-text-muted)",
+});
 
 interface FriendAskProps {
   onUpdate: () => void;
@@ -17,7 +29,6 @@ export const FriendAsk: FC<FriendAskProps> = ({ onUpdate }) => {
       const form = e.currentTarget;
       const formData = new FormData(form);
       const friendname = (formData.get("friendname") ?? "").toString().trim();
-      console.log("we will try to make friend with :", friendname);
       if (!friendname) {
         setErrorMsg("Please enter a name before submitting.");
         return;
@@ -36,13 +47,16 @@ export const FriendAsk: FC<FriendAskProps> = ({ onUpdate }) => {
 
   return (
     <Section title="Make new friends">
-      <form onSubmit={handleSubmitEvent}>
+      <FriendAskCopy>
+        Invite guardians you trust to coordinate future playdates together.
+      </FriendAskCopy>
+      <FriendAskForm onSubmit={handleSubmitEvent}>
         <FormControl>
-          <label htmlFor="friendname">Name:</label>
-          <input type="text" id="friendname" name="friendname" />
+          <label htmlFor="friendname">Name</label>
+          <input type="text" id="friendname" name="friendname" placeholder="Jamie" />
         </FormControl>
-        <button>Ask for friend</button>
-      </form>
+        <button type="submit">Send invite</button>
+      </FriendAskForm>
       {errorMsg && <ErrorMessage>Error: {errorMsg}</ErrorMessage>}
     </Section>
   );

@@ -257,6 +257,8 @@ export async function ensureDefaultUsers() {
         ...userData,
         playdate_latit: 51.5,
         playdate_longi: -0.09,
+        mfaVerified: true,
+        lastLoginAt: new Date(),
       });
     }
   }
