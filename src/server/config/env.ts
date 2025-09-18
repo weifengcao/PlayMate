@@ -18,6 +18,17 @@ const parseNumber = (value: string | undefined, fallback: number): number => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
+const parseStringList = (value: string | undefined, fallback: string[] = []): string[] => {
+  if (!value) {
+    return fallback;
+  }
+  const list = value
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+  return list.length > 0 ? list : fallback;
+};
+
 const parseBoolean = (value: string | undefined, fallback: boolean): boolean => {
   if (value === undefined) {
     return fallback;
@@ -39,6 +50,12 @@ export const appConfig = {
     host: process.env.DB_HOST ?? '127.0.0.1',
     port: parseNumber(process.env.DB_PORT, 5432),
     ssl: parseBoolean(process.env.DB_SSL, false),
+  },
+  cors: {
+    origins: parseStringList(process.env.CORS_ORIGINS, [
+      'http://localhost:3000',
+      'http://localhost:5173',
+    ]),
   },
   agentLogLevel: parseLogLevel(process.env.AGENT_LOG_LEVEL, 'info'),
 };

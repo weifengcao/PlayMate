@@ -1,5 +1,6 @@
 import { createServer } from './vite-server'
 import bodyParser from 'body-parser'
+import cors from 'cors'
 
 import sequelize from './initSeq'
 import { User, initUser } from './models/User'
@@ -17,6 +18,7 @@ import { populateDatabase } from './initData'
 
 import './orchestrator/handlers'
 import { agentTaskWorker } from './orchestrator/AgentTaskWorker'
+import { appConfig } from './config/env'
 
 
 const start = async () => {
@@ -29,6 +31,11 @@ const start = async () => {
   initAgentTask(sequelize);
 
   const { serve, app } = await createServer();
+
+  app.use(cors({
+    origin: appConfig.cors.origins,
+    credentials: true,
+  }));
 
   app.get('/test', (_, res) => {
     res.json({ hello: 'worlddd' });
