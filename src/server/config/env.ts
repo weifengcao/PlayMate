@@ -18,15 +18,27 @@ const parseNumber = (value: string | undefined, fallback: number): number => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
+const parseBoolean = (value: string | undefined, fallback: boolean): boolean => {
+  if (value === undefined) {
+    return fallback;
+  }
+  const normalised = value.trim().toLowerCase();
+  if (normalised === 'true') return true;
+  if (normalised === 'false') return false;
+  return fallback;
+};
+
 export const appConfig = {
   jwtSecret: process.env.JWT_SECRET ?? 'abcdef0123456789',
   db: {
     dialect: 'postgres',
+    connectionString: process.env.DATABASE_URL,
     database: process.env.DB_NAME ?? 'postgres',
     username: process.env.DB_USER ?? 'postgres',
     password: process.env.DB_PASSWORD ?? 'postgres',
     host: process.env.DB_HOST ?? '127.0.0.1',
     port: parseNumber(process.env.DB_PORT, 5432),
+    ssl: parseBoolean(process.env.DB_SSL, false),
   },
   agentLogLevel: parseLogLevel(process.env.AGENT_LOG_LEVEL, 'info'),
 };
