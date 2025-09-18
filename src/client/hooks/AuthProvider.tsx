@@ -9,6 +9,15 @@ import {
 import { useNavigate } from "react-router-dom";
 import { shutdownTaskEvents } from "../taskEvents";
 
+const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
+
+const buildUrl = (path: string) => {
+  if (!path.startsWith("/")) {
+    return `${API_BASE}/${path}`;
+  }
+  return `${API_BASE}${path}`;
+};
+
 export interface AuthContextType {
   token: string | null;
   user: string | null;
@@ -35,8 +44,8 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
   const loginAction = useCallback(
     async (data: { username: string; password: string }) => {
       try {
-        const response = await fetch("/auth/login", {
-          credentials: "same-origin",
+        const response = await fetch(buildUrl("/auth/login"), {
+          credentials: "include",
           method: "POST",
           headers: {
             Accept: "application/json",
@@ -73,8 +82,8 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
 
   const logOut = useCallback(async () => {
     console.log("logout start");
-    const response = await fetch("/auth/logout", {
-      credentials: "same-origin",
+    const response = await fetch(buildUrl("/auth/logout"), {
+      credentials: "include",
       method: "GET",
       headers: {
         Accept: "application/json",
