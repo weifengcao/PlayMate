@@ -11,8 +11,10 @@ const { promisify } = require('util');
 const fs = require('node:fs');
 const exec = promisify(require('child_process').exec)
 
-export async function populatePlaydateSessions() {
+import { User } from './User';
 
+export async function populatePlaydateSessions() {
+  
   const connectCmd = 'PGPASSWORD="postgres" psql -h 127.0.0.1 -p 5432 -U postgres -d postgres';
   const sqlCreateImpKids = 'CREATE TABLE IF NOT EXISTS imported_kids (ikid_id SERIAL PRIMARY KEY, name VARCHAR (50) NOT NULL, favorite_activity VARCHAR (50) NOT NULL);'
   const sqlCreateImpPlaydates = 'CREATE TABLE IF NOT EXISTS  imported_playdate_sessions (path_id SERIAL PRIMARY KEY, imported_kid_ref INT, distance_meter FLOAT, play_start TIMESTAMP, play_end TIMESTAMP, FOREIGN KEY (imported_kid_ref) REFERENCES imported_kids(ikid_id));';
@@ -237,6 +239,26 @@ export async function populatePlaydateSessions() {
     fs.writeFileSync(sqlFile, sqlPopulateImpTable);
     await exec(connectCmd + ' -a -f ' + sqlFile);
     fs.unlinkSync(sqlFile);
+  }
+}
+
+export async function ensureDefaultUsers() {
+  const defaults = [
+    { name: 'jill', password: 'a', email: 'jill@jungle.com' },
+    { name: 'brad', password: 'b', email: 'brad@foursfield.com' },
+    { name: 'cathy', password: 'c', email: 'cathy@comics.com' },
+    { name: 'dilb', password: 'd', email: 'dilb@company.com' },
+  ];
+
+  for (const userData of defaults) {
+    const existing = await User.findOne({ where: { name: userData.name } });
+    if (!existing) {
+      await User.create({
+        ...userData,
+        playdate_latit: 51.5,
+        playdate_longi: -0.09,
+      });
+    }
   }
 }
 

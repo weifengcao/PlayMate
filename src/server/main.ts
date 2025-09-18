@@ -14,7 +14,7 @@ import TaskRoutes from './routes/tasks'
 import TaskEventRoutes from './routes/task_events'
 import RecommendationRoutes from './routes/recommendations'
 import AuthRoutes from './routes/auth'
-import { populateDatabase } from './initData'
+import { populateDatabase, ensureDefaultUsers } from './initData'
 
 import './orchestrator/handlers'
 import { agentTaskWorker } from './orchestrator/AgentTaskWorker'
@@ -78,6 +78,7 @@ const start = async () => {
 
   await sequelize.sync();
   await populateDatabase();
+  await ensureDefaultUsers();
   agentTaskWorker.start();
   serve()
 
