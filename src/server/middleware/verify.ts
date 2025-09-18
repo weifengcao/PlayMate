@@ -3,6 +3,7 @@ import { AuthenticatedRequest } from './AuthenticatedRequest';
 import { User } from "../models/User";
 import jwt, { JwtPayload } from "jsonwebtoken";
 import { appConfig } from "../config/env";
+import cookie from 'cookie';
 
 interface CustomJwtPayload extends JwtPayload {
   id: number;
@@ -11,8 +12,8 @@ interface CustomJwtPayload extends JwtPayload {
 export async function Verify(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
         // get the session cookie from request header
-        const authHeader = req.headers["cookie"];
-        if (!authHeader) {
+        const rawCookieHeader = req.headers["cookie"];
+        if (!rawCookieHeader) {
             // there is no cookie from request header,
             // we send an unauthorized response.
             console.log("There is nothing in the cookies.");
@@ -20,18 +21,16 @@ export async function Verify(req: Request, res: Response, next: NextFunction): P
             res.sendStatus(401);
             return;
         }
-        // Split cookie header to get the actual jwt
-        const cookies = authHeader.split(';').map((c) => c.trim());
-        const sessionCookie = cookies.find((c) => c.startsWith('SessionID='));
+        const cookies = cookie.parse(rawCookieHeader);
+        const sessionCookie = cookies.SessionID;
         if (!sessionCookie) {
             res.status(401).json({ message: "Session cookie missing." });
             return;
         }
-        const cookie = sessionCookie.substring('SessionID='.length);
         // Verify using jwt to see if token has been tampered with or if it has expired.
         let decoded: string | jwt.JwtPayload | undefined;
         try {
-            decoded = jwt.verify(cookie, appConfig.jwtSecret);
+            decoded = jwt.verify(sessionCookie, appConfig.jwtSecret);
         } catch (err) {
             if (err instanceof jwt.TokenExpiredError) {
                 res.status(401).json({ message: "Session has expired. Please login" });
