@@ -32,12 +32,16 @@ const start = async () => {
 
   const { serve, app } = await createServer();
 
+  const escapeRegex = (value: string) => value.replace(/[|\\{}()[\]^$+*?.]/g, '\\$&');
+
   const allowedOrigins = appConfig.cors.origins.map((origin) => {
-    if (origin.includes('*')) {
-      const pattern = '^' + origin.trim().replace(/\./g, '\\.').replace(/\*/g, '.*') + '$';
+    const trimmed = origin.trim();
+    if (trimmed.includes('*')) {
+      const parts = trimmed.split('*').map(escapeRegex);
+      const pattern = '^' + parts.join('.*') + '$';
       return new RegExp(pattern);
     }
-    return origin;
+    return trimmed;
   });
 
   const corsOptions: CorsOptions = {
