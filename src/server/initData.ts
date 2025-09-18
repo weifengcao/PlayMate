@@ -2,6 +2,8 @@ import { User } from './models/User';
 import Kid from './models/Kids';
 import { FriendLink } from './models/FriendLink';
 
+export { ensureDefaultUsers } from './models/InitData';
+
 export async function populateDatabase() {
   const userCount = await User.count();
   if (userCount === 0) {
