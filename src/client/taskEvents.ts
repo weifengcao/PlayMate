@@ -1,3 +1,12 @@
+const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
+
+const buildUrl = (path: string) => {
+  if (!path.startsWith("/")) {
+    return `${API_BASE}/${path}`;
+  }
+  return `${API_BASE}${path}`;
+};
+
 type TaskStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'dead-letter';
 
 export interface TaskUpdate<T = unknown> {
@@ -30,7 +39,9 @@ function ensureConnection() {
     return;
   }
   isConnecting = true;
-  eventSource = new EventSource('/api/task-events');
+  eventSource = new EventSource(buildUrl('/api/task-events'), {
+    withCredentials: true,
+  });
 
   eventSource.addEventListener('task-update', (event) => {
     try {

@@ -1,6 +1,15 @@
 import { FriendshipState, Kid, PlaydateCoordinates, Friend, PlaydateUpdatePayload, AgentInboxItem, FriendRecommendationPayload, ActivityLeaderboardItem, LeaderboardSort, FriendRecommendationEnvelope } from "./types";
 import { subscribeToTask, TaskUpdate, subscribeToAllTasks } from "./taskEvents";
 
+const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
+
+const buildUrl = (path: string) => {
+  if (!path.startsWith("/")) {
+    return `${API_BASE}/${path}`;
+  }
+  return `${API_BASE}${path}`;
+};
+
 type TaskStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'dead-letter';
 
 interface TaskEnvelope<T = unknown> {
@@ -15,7 +24,7 @@ interface TaskEnvelope<T = unknown> {
 }
 
 async function fetchApi<T = unknown>(url: string, options: RequestInit = {}) {
-  const resp = await fetch(url, {
+  const resp = await fetch(buildUrl(url), {
     ...options,
     credentials: "include",
   });
