@@ -1,5 +1,7 @@
 {
   "rewrites": [
+    { "source": "/api/(.*)", "destination": "https://playmate-f64o.onrender.com/api/$1" },
+    { "source": "/auth/(.*)", "destination": "https://playmate-f64o.onrender.com/auth/$1" },
     { "source": "/(.*)", "destination": "/" }
   ]
 }

@@ -4,10 +4,13 @@ import { subscribeToTask, TaskUpdate, subscribeToAllTasks } from "./taskEvents";
 const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
 
 const buildUrl = (path: string) => {
-  if (!path.startsWith("/")) {
-    return `${API_BASE}/${path}`;
+  if (API_BASE) {
+    if (!path.startsWith("/")) {
+      return `${API_BASE}/${path}`;
+    }
+    return `${API_BASE}${path}`;
   }
-  return `${API_BASE}${path}`;
+  return path.startsWith("/") ? path : `/${path}`;
 };
 
 type TaskStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'dead-letter';
