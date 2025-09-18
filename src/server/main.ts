@@ -1,6 +1,6 @@
 import { createServer } from './vite-server'
 import bodyParser from 'body-parser'
-import cors from 'cors'
+import cors, { CorsOptions } from 'cors'
 
 import sequelize from './initSeq'
 import { User, initUser } from './models/User'
@@ -32,10 +32,32 @@ const start = async () => {
 
   const { serve, app } = await createServer();
 
-  app.use(cors({
-    origin: appConfig.cors.origins,
+  const allowedOrigins = appConfig.cors.origins.map((origin) => {
+    if (origin.includes('*')) {
+      const pattern = '^' + origin.trim().replace(/\./g, '\\.').replace(/\*/g, '.*') + '$';
+      return new RegExp(pattern);
+    }
+    return origin;
+  });
+
+  const corsOptions: CorsOptions = {
+    origin: (origin, callback) => {
+      if (!origin) {
+        return callback(null, true);
+      }
+      const isAllowed = allowedOrigins.some((allowed) =>
+        allowed instanceof RegExp ? allowed.test(origin) : allowed === origin
+      );
+      if (isAllowed) {
+        callback(null, true);
+      } else {
+        callback(new Error(`Origin ${origin} is not allowed by CORS policy`));
+      }
+    },
     credentials: true,
-  }));
+  };
+
+  app.use(cors(corsOptions));
 
   app.get('/test', (_, res) => {
     res.json({ hello: 'worlddd' });
