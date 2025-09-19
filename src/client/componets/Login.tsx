@@ -1,4 +1,4 @@
-import { ChangeEvent, FormEvent, useCallback, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { keyframes } from "@emotion/react";
 import styled from "@emotion/styled";
 import { useAuth, LoginResult } from "../hooks/AuthProvider";
@@ -502,6 +502,14 @@ export const Login = () => {
     setSocialDetails({ email: "", name: "" });
   }, []);
 
+  const resetAllForms = useCallback(() => {
+    setCredentials({ identifier: "", password: "" });
+    setRegistration({ name: "", email: "", password: "", confirm: "" });
+    resetTransientState();
+    setIsSubmitting(false);
+    setIsSocialSubmitting(false);
+  }, [resetTransientState]);
+
   const switchToSignIn = useCallback(() => {
     setMode("signIn");
     resetTransientState();
@@ -513,6 +521,12 @@ export const Login = () => {
     resetTransientState();
     setCredentials({ identifier: "", password: "" });
   }, [resetTransientState]);
+
+  useEffect(() => {
+    return () => {
+      resetAllForms();
+    };
+  }, [resetAllForms]);
 
   const handleCredentialChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
     const { name, value } = event.target;
@@ -789,30 +803,28 @@ export const Login = () => {
                   </LoginForm>
                 ) : (
                   <LoginForm onSubmit={handleLoginSubmit}>
-                    <FormControl>
-                      <label htmlFor="identifier">Email or username</label>
-                      <input
-                        type="text"
-                        id="identifier"
-                        name="identifier"
-                        autoComplete="username"
-                        onChange={handleCredentialChange}
-                        value={credentials.identifier}
-                        placeholder="alex.johnson@example.com"
-                      />
-                    </FormControl>
-                    <FormControl>
-                      <label htmlFor="password">Password</label>
-                      <input
-                        type="password"
-                        id="password"
-                        name="password"
-                        autoComplete="current-password"
-                        onChange={handleCredentialChange}
-                        value={credentials.password}
-                        placeholder="********"
-                      />
-                    </FormControl>
+            <FormControl>
+              <label htmlFor="identifier">Email or username</label>
+              <input
+                type="text"
+                id="identifier"
+                name="identifier"
+                autoComplete="off"
+                onChange={handleCredentialChange}
+                value={credentials.identifier}
+              />
+            </FormControl>
+            <FormControl>
+              <label htmlFor="password">Password</label>
+              <input
+                type="password"
+                id="password"
+                name="password"
+                autoComplete="off"
+                onChange={handleCredentialChange}
+                value={credentials.password}
+              />
+            </FormControl>
                     <button type="submit" disabled={isSubmitting}>
                       {isSubmitting ? "Signing in..." : "Sign in"}
                     </button>

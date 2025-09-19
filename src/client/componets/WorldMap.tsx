@@ -17,7 +17,7 @@ import {
   getPlaydateRecommendations,
 } from "../api";
 import { PlaydatePoint } from "./PlaydatePoint";
-import { PlaydateCoordinates, AvailabilityPlan, LocalInsight, FriendRecommendationEnvelope, LeaderboardSort, ActivityLeaderboardItem } from "../types";
+import { PlaydateCoordinates, AvailabilityPlan, LocalInsight, FriendRecommendationEnvelope, LeaderboardSort, ActivityLeaderboardItem, FriendRecommendationPayload } from "../types";
 
 const DEFAULT_POSITION: LatLngLiteral = { lat: 51.505, lng: -0.09 };
 
@@ -46,7 +46,12 @@ const MapClickHandler = ({ onSelect }: { onSelect: (coords: LatLngLiteral) => vo
   return null;
 };
 
-export default function WorldMap() {
+interface WorldMapProps {
+  showHeader?: boolean;
+  onPlaydateSelect?: (payload: FriendRecommendationPayload | null) => void;
+}
+
+export default function WorldMap({ showHeader = true, onPlaydateSelect }: WorldMapProps = {}) {
   const [mapPosition, setMapPosition] = useState<LatLngExpression>([
     DEFAULT_POSITION.lat,
     DEFAULT_POSITION.lng,
@@ -104,7 +109,8 @@ export default function WorldMap() {
     });
     setStatusMessage("Coordinates updated from map.");
     setErrorMessage(null);
-  }, []);
+    onPlaydateSelect?.(null);
+  }, [onPlaydateSelect]);
 
   const handleCoordinateChange = useCallback(
     (updates: { latitude?: string; longitude?: string }) => {
@@ -225,13 +231,13 @@ export default function WorldMap() {
   const containerStyle = useMemo(
     () => ({
       maxWidth: "900px",
-      margin: "0 auto",
-      padding: "0 16px 32px",
+      margin: showHeader ? "0 auto" : "0",
+      padding: showHeader ? "0 16px 32px" : "0",
       display: "flex",
       flexDirection: "column" as const,
       gap: "24px",
     }),
-    []
+    [showHeader]
   );
 
   const mapStyle = useMemo(
@@ -293,6 +299,7 @@ export default function WorldMap() {
             typeof rec.friendLongitude === 'number' && Number.isFinite(rec.friendLongitude)
         )
         .map((rec) => ({
+          payload: rec,
           friendId: rec.friendId,
           friendName: rec.friendName ?? 'Playmate',
           position: [rec.friendLatitude as number, rec.friendLongitude as number] as LatLngExpression,
@@ -321,7 +328,7 @@ export default function WorldMap() {
 
   return (
     <div style={containerStyle}>
-      <Header>Playdate Point</Header>
+      {showHeader && <Header>Playdate Point</Header>}
 
       <MapContainer
         center={mapPosition}
@@ -342,7 +349,13 @@ export default function WorldMap() {
           </Popup>
         </Marker>
         {friendMarkers.map((marker) => (
-          <Marker key={marker.friendId} position={marker.position}>
+          <Marker
+            key={marker.friendId ?? marker.friendName}
+            position={marker.position}
+            eventHandlers={{
+              click: () => onPlaydateSelect?.(marker.payload ?? null),
+            }}
+          >
             <Popup>
               <div style={{ fontWeight: 600 }}>{marker.friendName}</div>
               <div>{marker.headline}</div>
