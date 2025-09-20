@@ -52,6 +52,8 @@ Environment variables customise PlayMate without changing code. Defaults support
 | `FEATURE_AVAILABILITY_AGENT` | Enable availability planning suggestions | `true` |
 | `FEATURE_KNOWLEDGE_AGENT` | Surface local insight tips alongside location updates | `true` |
 
+Set `NODE_ENV=production` in any hosted deployment so session cookies are emitted with `Secure` and `SameSite=None`. Without it, cross-domain logins from Vercel will fail.
+
 Set variables inline when starting the server, e.g.
 ```bash
 FEATURE_AVAILABILITY_AGENT=false CORS_ORIGINS="http://localhost:8080" npm start
@@ -105,7 +107,8 @@ index.html            # Vite entry template
   - `JWT_SECRET` = long random string.
   - `CORS_ORIGINS` = include your Vercel domain(s), e.g. `https://your-app.vercel.app`.
   - `AGENT_LOG_LEVEL` = `info` (or `debug` for staging).
-  - Optional overrides: `FEATURE_AVAILABILITY_AGENT`, `FEATURE_KNOWLEDGE_AGENT`, `NODE_ENV=production`, `ALLOWED_HOSTS` if you plan to expose HMR during previews.
+- Optional overrides: `FEATURE_AVAILABILITY_AGENT`, `FEATURE_KNOWLEDGE_AGENT`, `ALLOWED_HOSTS` if you plan to expose HMR during previews.
+- Set `NODE_ENV=production` on Render (or whichever platform hosts the API) to keep cookies cross-site compatible.
 - Render automatically sets `PORT`. The server listens via `vite-server.ts`, so no extra port configuration is needed.
 - After the first deploy, confirm the service logs show tables being created, seed data inserted, and the agent worker starting without errors.
 
