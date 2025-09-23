@@ -5,15 +5,17 @@ import { Friends } from './componets/Friends';
 import WorldMap from './componets/WorldMap';
 import { ProtectedRoute } from './componets/ProtectedRoute';
 import { AuthProvider } from './hooks/AuthProvider';
+import LandingPage from './componets/LandingPage';
 
 function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
         <Routes>
+          <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<Login />} />
           <Route
-            path="/"
+            path="/dashboard"
             element={<ProtectedRoute><Dashboard /></ProtectedRoute>}
           />
           <Route

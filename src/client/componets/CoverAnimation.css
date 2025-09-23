@@ -1,0 +1,59 @@
+.cover-animation-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  z-index: -1; /* Behind the login form */
+}
+
+.ball {
+  position: absolute;
+  bottom: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background-color: #ffcc00; /* Default ball color */
+  animation: bounce 4s infinite ease-in-out;
+}
+
+/* Different colors and animation delays for each ball */
+.ball:nth-child(1) {
+  left: 15%;
+  animation-delay: 0s;
+  background-color: #ff6f61;
+}
+
+.ball:nth-child(2) {
+  left: 35%;
+  animation-delay: 0.5s;
+  background-color: #6495ed;
+}
+
+.ball:nth-child(3) {
+  left: 55%;
+  animation-delay: 1s;
+  background-color: #9acd32;
+}
+
+.ball:nth-child(4) {
+  left: 75%;
+  animation-delay: 1.5s;
+  background-color: #ffcc00;
+}
+
+.ball:nth-child(5) {
+  left: 95%;
+  animation-delay: 2s;
+  background-color: #ff69b4;
+}
+
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-80vh);
+  }
+}

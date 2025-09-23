@@ -22,7 +22,8 @@
     "react-leaflet": "^4.2.1",
     "react-router-dom": "^6.26.2",
     "sequelize": "^6.32.1",
-    "vite": "^4.4.9"
+    "vite": "^4.4.9",
+    "lottie-react": "^2.4.0"
   },
   "devDependencies": {
     "@swc/core": "^1.13.5",
