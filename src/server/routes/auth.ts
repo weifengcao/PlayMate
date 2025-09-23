@@ -8,6 +8,13 @@ const router = Router();
 
 const isProduction = process.env.NODE_ENV === 'production';
 
+const defaultUserVerificationCodes: Record<string, string> = {
+  'jill@jungle.com': '112233',
+  'brad@foursfield.com': '223344',
+  'cathy@comics.com': '334455',
+  'dilb@company.com': '445566',
+};
+
 const cookieOptions: CookieOptions = {
   maxAge: 20 * 60 * 1000,
   httpOnly: true,
@@ -24,6 +31,13 @@ const sendLoginSuccess = (res: Response, user: User) => {
     data: [userDetailsToReturn],
     message: 'You have successfully logged in.',
   });
+};
+
+const resolveDevOverrideCode = (user: User) => {
+  if (isProduction) {
+    return undefined;
+  }
+  return defaultUserVerificationCodes[user.email.toLowerCase()] ?? undefined;
 };
 
 const respondMfaRequired = (
@@ -86,7 +100,7 @@ router.post('/login', async (req, res) => {
     }
 
     if (!user.mfaVerified) {
-      const code = createChallenge(user.id);
+      const code = createChallenge(user.id, resolveDevOverrideCode(user));
       respondMfaRequired(res, user, code);
       return;
     }
@@ -237,7 +251,7 @@ router.post('/mfa/resend', async (req, res) => {
       return;
     }
 
-    const code = createChallenge(user.id);
+    const code = createChallenge(user.id, resolveDevOverrideCode(user));
     respondMfaRequired(res, user, code);
   } catch (err) {
     res.status(500).json({

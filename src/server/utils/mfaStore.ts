@@ -14,8 +14,13 @@ const generateCode = () => {
     .slice(-6);
 };
 
-export const createChallenge = (userId: number) => {
-  const code = generateCode();
+const SIX_DIGIT_PATTERN = /^\d{6}$/;
+
+export const createChallenge = (userId: number, overrideCode?: string) => {
+  const sanitizedOverride = overrideCode?.trim();
+  const code = sanitizedOverride && SIX_DIGIT_PATTERN.test(sanitizedOverride)
+    ? sanitizedOverride
+    : generateCode();
   challenges.set(userId, { code, expiresAt: Date.now() + CODE_TTL_MS });
   return code;
 };
