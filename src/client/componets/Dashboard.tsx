@@ -1,12 +1,32 @@
 import { ChangeEvent, FormEvent, MouseEvent, useCallback, useEffect, useMemo, useState } from "react";
 import styled from "@emotion/styled";
-import { Link, useNavigate } from "react-router-dom";
-import { MapContainer, TileLayer, Circle, Marker, Popup } from "react-leaflet";
+import { MapContainer, TileLayer, Circle, Marker, Popup, useMap, useMapEvents } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import { useAuth } from "../hooks/AuthProvider";
-import { getMyKids, getMyPlaydatePoint, getPlaydateRecommendations } from "../api";
+import {
+  fetchPlaydateAudit,
+  getMyKids,
+  getMyPlaydatePoint,
+  getPlaydateRecommendations,
+  getPlaydatesOverview,
+  leavePlaydate,
+  requestJoinPlaydate,
+  respondToJoinRequest,
+  schedulePlaydate,
+  updatePlaydate,
+} from "../api";
 import KidItem from "./KidItem";
-import { FriendRecommendationPayload, Kid, ActivityLeaderboardItem, LeaderboardSort } from "../types";
+import {
+  ActivityLeaderboardItem,
+  FriendRecommendationPayload,
+  JoinedPlaydateSummary,
+  Kid,
+  LeaderboardSort,
+  PlaydateApplicantAudit,
+  PlaydateHostSummary,
+  PlaydateParticipantSummary,
+  SchedulePlaydateRequest,
+} from "../types";
 import { Section } from "./Section";
 import { Page } from "./Page";
 import WorldMap from "./WorldMap";
@@ -17,7 +37,7 @@ const ONE_MILE_KM = 1.60934;
 const EARTH_RADIUS_KM = 6371;
 const RADIUS_OPTIONS = [1, 3, 5, 10];
 
-type DashboardView = "overview" | "map" | "friends" | "profile" | "kids";
+type DashboardView = "overview" | "playdates" | "friends" | "profile" | "kids";
 
 type Coordinates = { lat: number; lng: number };
 
@@ -26,7 +46,12 @@ type LeaderboardEntry = {
   distanceKm: number | null;
 };
 
-interface JoinedPlaydate {
+interface LocationSuggestion {
+  label: string;
+  coordinates?: Coordinates;
+}
+
+interface OverviewJoinedPlaydate {
   id: number;
   activity: string;
   host: string;
@@ -94,6 +119,121 @@ const resolveLocationLabel = (point: Coordinates | null) => {
   }
 
   return `${point.lat.toFixed(3)}°, ${point.lng.toFixed(3)}°`;
+};
+
+const LOCATION_HINT_DATA: Array<{ keywords: string[]; locations: LocationSuggestion[] }> = [
+  {
+    keywords: ["san carlos"],
+    locations: [
+      { label: "Highlands Park, San Carlos", coordinates: { lat: 37.5073, lng: -122.2623 } },
+      { label: "Burton Park, San Carlos", coordinates: { lat: 37.4989, lng: -122.259 } },
+      { label: "San Carlos Youth Center", coordinates: { lat: 37.4997, lng: -122.2571 } },
+      { label: "Laurel Street Courtyard, San Carlos", coordinates: { lat: 37.5065, lng: -122.262 } },
+      { label: "Hiller Aviation Museum, San Carlos", coordinates: { lat: 37.5153, lng: -122.25 } },
+    ],
+  },
+  {
+    keywords: ["redwood city"],
+    locations: [
+      { label: "Red Morton Community Center, Redwood City", coordinates: { lat: 37.483, lng: -122.236 } },
+      { label: "Magical Bridge Playground, Redwood City", coordinates: { lat: 37.4859, lng: -122.235 } },
+      { label: "Marlin Park, Redwood City", coordinates: { lat: 37.5443, lng: -122.2623 } },
+      { label: "Downtown Library Courtyard, Redwood City", coordinates: { lat: 37.4851, lng: -122.2287 } },
+    ],
+  },
+  {
+    keywords: ["new york", "manhattan"],
+    locations: [
+      { label: "Central Park – Heckscher Playground, Manhattan", coordinates: { lat: 40.7694, lng: -73.977 } },
+      { label: "Chelsea Waterside Park, Manhattan", coordinates: { lat: 40.7471, lng: -74.0077 } },
+      { label: "Pier 25 Play Space, Manhattan", coordinates: { lat: 40.7202, lng: -74.0157 } },
+      { label: "Bryant Park Reading Room, Manhattan", coordinates: { lat: 40.7536, lng: -73.9832 } },
+    ],
+  },
+  {
+    keywords: ["san francisco", "sf"],
+    locations: [
+      { label: "Golden Gate Park – Koret Playground, San Francisco", coordinates: { lat: 37.7706, lng: -122.4661 } },
+      { label: "Yerba Buena Children's Garden, San Francisco", coordinates: { lat: 37.784, lng: -122.4023 } },
+      { label: "Mission Dolores Park, San Francisco", coordinates: { lat: 37.7596, lng: -122.4269 } },
+      { label: "Crissy Field Center, San Francisco", coordinates: { lat: 37.8027, lng: -122.4645 } },
+    ],
+  },
+];
+
+const LOCATION_LABEL_MAP = new Map<string, Coordinates>();
+const LOCATION_INDEX: LocationSuggestion[] = [];
+for (const hint of LOCATION_HINT_DATA) {
+  for (const location of hint.locations) {
+    if (location.coordinates) {
+      LOCATION_LABEL_MAP.set(location.label.toLowerCase(), location.coordinates);
+      LOCATION_INDEX.push(location);
+    }
+  }
+}
+
+const buildLocationSuggestions = (rawValue: string): LocationSuggestion[] => {
+  const trimmed = rawValue.trim();
+  if (!trimmed) {
+    return [];
+  }
+  const lower = trimmed.toLowerCase();
+  const suggestions = new Map<string, LocationSuggestion>();
+  for (const hint of LOCATION_HINT_DATA) {
+    if (hint.keywords.some((keyword) => lower.includes(keyword))) {
+      hint.locations.forEach((location) => {
+        if (!suggestions.has(location.label)) {
+          suggestions.set(location.label, location);
+        }
+      });
+    }
+  }
+
+  if (suggestions.size === 0 && trimmed.length >= 3) {
+    [
+      `${trimmed} Community Center`,
+      `${trimmed} Family Park`,
+      `${trimmed} Public Library`,
+    ].forEach((label) => {
+      suggestions.set(label, { label });
+    });
+  }
+
+  return Array.from(suggestions.values()).slice(0, 6);
+};
+
+const findCoordinatesForLabel = (label?: string | null): Coordinates | null => {
+  if (!label) {
+    return null;
+  }
+  const lower = label.trim().toLowerCase();
+  if (!lower) {
+    return null;
+  }
+  for (const [key, coords] of LOCATION_LABEL_MAP.entries()) {
+    if (lower === key || key.includes(lower) || lower.includes(key)) {
+      return coords;
+    }
+  }
+  return null;
+};
+
+const findLabelNearCoordinates = (coords: Coordinates, maxDistanceKm = 0.8): string | null => {
+  let closest: { label: string; distance: number } | null = null;
+  for (const location of LOCATION_INDEX) {
+    if (!location.coordinates) {
+      continue;
+    }
+    const distance = distanceKm(coords.lat, coords.lng, location.coordinates.lat, location.coordinates.lng);
+    if (!closest || distance < closest.distance) {
+      closest = { label: location.label, distance };
+    }
+  }
+
+  if (closest && closest.distance <= maxDistanceKm) {
+    return closest.label;
+  }
+  return null;
 };
 
 const TopBar = styled.div({
@@ -572,12 +712,233 @@ const SelectedHint = styled.p({
   color: "var(--color-text-muted)",
 });
 
+const PlaydateBanner = styled.div<{ tone?: "neutral" | "error" }>(({ tone = "neutral" }) => ({
+  padding: 12,
+  borderRadius: 12,
+  fontWeight: 600,
+  background:
+    tone === "error"
+      ? "rgba(255, 116, 116, 0.16)"
+      : "rgba(74, 201, 134, 0.18)",
+  color: tone === "error" ? "#b23434" : "#0f9853",
+}));
+
+const PlaydateSectionBody = styled.div({
+  display: "flex",
+  flexDirection: "column",
+  gap: 16,
+});
+
+const PlaydateForm = styled.form({
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+  gap: 18,
+});
+
+const PlaydateFullRow = styled.div({
+  gridColumn: "1 / -1",
+});
+
+const PlaydateButtonRow = styled.div({
+  display: "flex",
+  flexWrap: "wrap",
+  gap: 12,
+});
+
+const PlaydateButton = styled.button<{ variant?: "primary" | "ghost" | "danger"; size?: "sm" | "md" }>(({ variant = "primary", size = "md" }) => ({
+  border: "none",
+  borderRadius: 999,
+  padding: size === "sm" ? "8px 14px" : "10px 20px",
+  fontWeight: 600,
+  cursor: "pointer",
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 6,
+  transition: "transform 0.15s ease, box-shadow 0.15s ease",
+  background:
+    variant === "primary"
+      ? "linear-gradient(135deg, rgba(107, 91, 255, 1) 0%, rgba(255, 156, 120, 0.95) 100%)"
+      : variant === "danger"
+      ? "linear-gradient(135deg, rgba(255, 91, 91, 0.95) 0%, rgba(255, 156, 120, 0.85) 100%)"
+      : "rgba(107, 91, 255, 0.12)",
+  color: variant === "ghost" ? "var(--color-primary-dark)" : "#ffffff",
+  boxShadow:
+    variant === "ghost"
+      ? "inset 0 0 0 1px rgba(107, 91, 255, 0.28)"
+      : "0 14px 34px rgba(107, 91, 255, 0.2)",
+  "&:disabled": {
+    opacity: 0.6,
+    cursor: "not-allowed",
+    transform: "none",
+    boxShadow: "none",
+  },
+  "&:not(:disabled):hover": {
+    transform: "translateY(-1px)",
+  },
+}));
+
+const PlaydateCard = styled.div({
+  display: "flex",
+  flexDirection: "column",
+  gap: 16,
+  padding: 22,
+  borderRadius: 22,
+  background: "linear-gradient(170deg, rgba(255, 255, 255, 0.95) 0%, rgba(107, 91, 255, 0.12) 100%)",
+  border: "1px solid rgba(107, 91, 255, 0.18)",
+  boxShadow: "var(--shadow-soft)",
+});
+
+const PlaydateCardHeader = styled.div({
+  display: "flex",
+  justifyContent: "space-between",
+  flexWrap: "wrap",
+  gap: 16,
+});
+
+const PlaydateCardTitle = styled.h3({
+  margin: 0,
+  fontSize: "1.1rem",
+  fontWeight: 700,
+  color: "var(--color-text-primary)",
+});
+
+const PlaydateCardMeta = styled.div({
+  display: "flex",
+  flexDirection: "column",
+  gap: 6,
+  color: "var(--color-text-muted)",
+  fontWeight: 500,
+});
+
+const PlaydateTag = styled.span<{ tone?: "neutral" | "positive" | "warning" }>(({ tone = "neutral" }) => ({
+  alignSelf: "flex-start",
+  padding: "6px 12px",
+  borderRadius: 999,
+  fontSize: "0.75rem",
+  fontWeight: 600,
+  textTransform: "uppercase",
+  letterSpacing: "0.06em",
+  background:
+    tone === "positive"
+      ? "rgba(74, 201, 134, 0.18)"
+      : tone === "warning"
+      ? "rgba(255, 171, 105, 0.2)"
+      : "rgba(107, 91, 255, 0.16)",
+  color:
+    tone === "positive"
+      ? "#0f9853"
+      : tone === "warning"
+      ? "#d56a1a"
+      : "var(--color-primary-dark)",
+}));
+
+const PlaydateParticipantList = styled.div({
+  display: "flex",
+  flexDirection: "column",
+  gap: 12,
+});
+
+const PlaydateParticipantRow = styled.div({
+  display: "flex",
+  flexDirection: "column",
+  gap: 8,
+  padding: 14,
+  borderRadius: 14,
+  background: "rgba(107, 91, 255, 0.08)",
+});
+
+const PlaydateAuditCard = styled.div({
+  display: "flex",
+  flexDirection: "column",
+  gap: 8,
+  padding: 14,
+  borderRadius: 14,
+  background: "rgba(74, 201, 134, 0.1)",
+  border: "1px solid rgba(74, 201, 134, 0.28)",
+});
+
+const PlaydateEmpty = styled.div({
+  padding: 18,
+  borderRadius: 16,
+  background: "rgba(107, 91, 255, 0.08)",
+  color: "var(--color-text-muted)",
+  fontWeight: 500,
+});
+
+const LocationSuggestionSelect = styled.select({
+  width: "100%",
+  borderRadius: "var(--border-radius-sm)",
+  border: "1px solid rgba(107, 91, 255, 0.28)",
+  padding: "10px 14px",
+  fontWeight: 600,
+  color: "var(--color-primary-dark)",
+  background: "rgba(107, 91, 255, 0.12)",
+  cursor: "pointer",
+});
+
+const PlaydateMapCard = styled.div({
+  display: "flex",
+  flexDirection: "column",
+  borderRadius: 22,
+  border: "1px solid rgba(107, 91, 255, 0.18)",
+  background: "linear-gradient(170deg, rgba(255, 255, 255, 0.95) 0%, rgba(107, 91, 255, 0.12) 100%)",
+  boxShadow: "var(--shadow-soft)",
+  overflow: "hidden",
+});
+
+const PlaydateMapHeader = styled.div({
+  padding: "18px 22px",
+  display: "flex",
+  flexDirection: "column",
+  gap: 6,
+});
+
+const PlaydateMapTitle = styled.h3({
+  margin: 0,
+  fontSize: "1.05rem",
+  fontWeight: 700,
+  color: "var(--color-text-primary)",
+});
+
+const PlaydateMapHint = styled.span({
+  fontSize: "0.85rem",
+  color: "var(--color-text-muted)",
+});
+
+const PlaydateMapViewport = styled.div({
+  height: 360,
+  width: "100%",
+});
+
+const toPlaydateDateTimeValue = (value: string | Date) => {
+  const date = value instanceof Date ? value : new Date(value);
+  const pad = (num: number) => `${num}`.padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
+
+const buildDefaultPlaydateForm = () => {
+  const start = new Date();
+  start.setHours(start.getHours() + 48, 0, 0, 0);
+  const end = new Date(start.getTime() + 1000 * 60 * 90);
+  return {
+    title: "Neighborhood explorers",
+    activity: "Playground hangout",
+    locationName: "",
+    description: "",
+    notes: "",
+    maxGuests: "4",
+    startTime: toPlaydateDateTimeValue(start),
+    endTime: toPlaydateDateTimeValue(end),
+  };
+};
+
+type PlaydateScheduleFormState = ReturnType<typeof buildDefaultPlaydateForm>;
+type PlaydateBusyMap = Record<number, boolean>;
+type PlaydateAuditState = Record<number, { loading: boolean; error?: string; audit?: PlaydateApplicantAudit }>;
+
 export const Dashboard = () => {
-  const navigate = useNavigate();
   const [kids, setKids] = useState<Kid[]>([]);
   const [activeView, setActiveView] = useState<DashboardView>("overview");
-  const [playdateScope, setPlaydateScope] = useState("nearby");
-  const [playdateSort, setPlaydateSort] = useState("upcoming");
   const [overviewRadius, setOverviewRadius] = useState<number>(1);
   const [selectedPlaydate, setSelectedPlaydate] = useState<FriendRecommendationPayload | null>(null);
   const [playdatePoint, setPlaydatePoint] = useState<Coordinates | null>(null);
@@ -587,8 +948,27 @@ export const Dashboard = () => {
   const [joiningPlaydate, setJoiningPlaydate] = useState<ActivityLeaderboardItem | null>(null);
   const [joinForm, setJoinForm] = useState({ guardianName: "", guardianEmail: "", kidName: "", notes: "" });
   const [joinMessage, setJoinMessage] = useState<string | null>(null);
-  const [joinedPlaydates, setJoinedPlaydates] = useState<JoinedPlaydate[]>([]);
+  const [joinedPlaydates, setJoinedPlaydates] = useState<OverviewJoinedPlaydate[]>([]);
   const auth = useAuth();
+
+  const [playdatesOverview, setPlaydatesOverview] = useState<{ hosted: PlaydateHostSummary[]; joined: JoinedPlaydateSummary[] } | null>(null);
+  const [playdatesLoading, setPlaydatesLoading] = useState(true);
+  const [playdatesError, setPlaydatesError] = useState<string | null>(null);
+  const [playdatesBanner, setPlaydatesBanner] = useState<string | null>(null);
+
+  const [playdateScheduleForm, setPlaydateScheduleForm] = useState<PlaydateScheduleFormState>(() => buildDefaultPlaydateForm());
+  const [playdateCreating, setPlaydateCreating] = useState(false);
+  const [showScheduleSuggestions, setShowScheduleSuggestions] = useState(true);
+  const [scheduleMapPosition, setScheduleMapPosition] = useState<Coordinates | null>(null);
+
+  const [editingPlaydateId, setEditingPlaydateId] = useState<number | null>(null);
+  const [editPlaydateDraft, setEditPlaydateDraft] = useState<PlaydateScheduleFormState | null>(null);
+  const [savingPlaydateId, setSavingPlaydateId] = useState<number | null>(null);
+
+  const [playdateDecisionBusy, setPlaydateDecisionBusy] = useState<PlaydateBusyMap>({});
+  const [playdateMembershipBusy, setPlaydateMembershipBusy] = useState<PlaydateBusyMap>({});
+  const [playdateAuditState, setPlaydateAuditState] = useState<PlaydateAuditState>({});
+  const [editSuggestionVisibility, setEditSuggestionVisibility] = useState<Record<number, boolean>>({});
 
   useEffect(() => {
     const fetchKids = async () => {
@@ -635,6 +1015,352 @@ export const Dashboard = () => {
 
     loadOverview();
   }, []);
+
+  const loadPlaydatesOverview = useCallback(async () => {
+    try {
+      setPlaydatesLoading(true);
+      setPlaydatesBanner(null);
+      setPlaydatesError(null);
+      const data = await getPlaydatesOverview();
+      setPlaydatesOverview(data);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unable to load playdates.";
+      setPlaydatesError(message);
+    } finally {
+      setPlaydatesLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadPlaydatesOverview();
+  }, [loadPlaydatesOverview]);
+
+  useEffect(() => {
+    if (playdatePoint && !scheduleMapPosition) {
+      setScheduleMapPosition(playdatePoint);
+    }
+  }, [playdatePoint, scheduleMapPosition]);
+
+  useEffect(() => {
+    const coords = findCoordinatesForLabel(playdateScheduleForm.locationName);
+    if (!coords) {
+      return;
+    }
+    setScheduleMapPosition((prev) => {
+      if (prev && Math.abs(prev.lat - coords.lat) < 0.0001 && Math.abs(prev.lng - coords.lng) < 0.0001) {
+        return prev;
+      }
+      return coords;
+    });
+  }, [playdateScheduleForm.locationName]);
+
+  const hostedPlaydates = playdatesOverview?.hosted ?? [];
+  const joinedPlaydateSummaries = playdatesOverview?.joined ?? [];
+
+  const handlePlaydateScheduleChange = (field: keyof PlaydateScheduleFormState) => (
+    event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
+    const value = event.target.value;
+    setPlaydateScheduleForm((prev) => ({ ...prev, [field]: value }));
+    if (field === "locationName") {
+      setShowScheduleSuggestions(true);
+    }
+  };
+
+  const submitPlaydateSchedule = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    try {
+      setPlaydatesBanner(null);
+      setPlaydatesError(null);
+      setPlaydateCreating(true);
+      const trimmedMax = playdateScheduleForm.maxGuests.trim();
+      const parsedMax = trimmedMax === "" ? null : Number(trimmedMax);
+      const payload: SchedulePlaydateRequest = {
+        title: playdateScheduleForm.title.trim() || "Neighborhood playdate",
+        activity: playdateScheduleForm.activity.trim() || "Playground hangout",
+        locationName: playdateScheduleForm.locationName.trim() || "Community park",
+        description: playdateScheduleForm.description.trim() || null,
+        notes: playdateScheduleForm.notes.trim() || null,
+        maxGuests: parsedMax != null && !Number.isNaN(parsedMax) ? parsedMax : null,
+        startTime: new Date(playdateScheduleForm.startTime).toISOString(),
+        endTime: new Date(playdateScheduleForm.endTime).toISOString(),
+      };
+      await schedulePlaydate(payload);
+      setPlaydatesBanner("Playdate scheduled.");
+      setPlaydateScheduleForm(buildDefaultPlaydateForm());
+      setShowScheduleSuggestions(false);
+      await loadPlaydatesOverview();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Could not schedule playdate.";
+      setPlaydatesError(message);
+    } finally {
+      setPlaydateCreating(false);
+    }
+  };
+
+  const beginPlaydateEditing = (playdate: PlaydateHostSummary) => {
+    setEditingPlaydateId(playdate.id);
+    setEditPlaydateDraft({
+      title: playdate.title,
+      activity: playdate.activity,
+      locationName: playdate.locationName,
+      description: playdate.description ?? "",
+      notes: playdate.notes ?? "",
+      maxGuests: playdate.maxGuests != null ? `${playdate.maxGuests}` : "",
+      startTime: toPlaydateDateTimeValue(playdate.startTime),
+      endTime: toPlaydateDateTimeValue(playdate.endTime),
+    });
+    setEditSuggestionVisibility((prev) => ({ ...prev, [playdate.id]: true }));
+    const coords = findCoordinatesForLabel(playdate.locationName);
+    if (coords) {
+      setScheduleMapPosition(coords);
+    }
+  };
+
+  const updatePlaydateDraft = (
+    field: keyof PlaydateScheduleFormState,
+    event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
+    const value = event.target.value;
+    setEditPlaydateDraft((prev) => (prev ? { ...prev, [field]: value } : prev));
+    if (field === "locationName" && editingPlaydateId != null) {
+      setEditSuggestionVisibility((prev) => ({ ...prev, [editingPlaydateId]: true }));
+    }
+  };
+
+  const cancelPlaydateEditing = () => {
+    if (editingPlaydateId != null) {
+      setEditSuggestionVisibility((prev) => {
+        const next = { ...prev };
+        delete next[editingPlaydateId];
+        return next;
+      });
+    }
+    setEditingPlaydateId(null);
+    setEditPlaydateDraft(null);
+  };
+
+  const applyPlaydateUpdate = async (playdateId: number, payload: Record<string, unknown>) => {
+    try {
+      setPlaydatesBanner(null);
+      setPlaydatesError(null);
+      setSavingPlaydateId(playdateId);
+      await updatePlaydate(playdateId, payload);
+      await loadPlaydatesOverview();
+      setPlaydatesBanner("Playdate updated.");
+      setEditSuggestionVisibility((prev) => {
+        const next = { ...prev };
+        delete next[playdateId];
+        return next;
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Update failed.";
+      setPlaydatesError(message);
+    } finally {
+      setSavingPlaydateId(null);
+    }
+  };
+
+  const submitPlaydateEdit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (editingPlaydateId == null || !editPlaydateDraft) {
+      return;
+    }
+    const trimmedLimit = editPlaydateDraft.maxGuests.trim();
+    const parsedLimit = trimmedLimit === "" ? null : Number(trimmedLimit);
+    await applyPlaydateUpdate(editingPlaydateId, {
+      title: editPlaydateDraft.title.trim(),
+      activity: editPlaydateDraft.activity.trim(),
+      locationName: editPlaydateDraft.locationName.trim(),
+      description: editPlaydateDraft.description.trim() || null,
+      notes: editPlaydateDraft.notes.trim() || null,
+      maxGuests: parsedLimit != null && !Number.isNaN(parsedLimit) ? parsedLimit : null,
+      startTime: new Date(editPlaydateDraft.startTime).toISOString(),
+      endTime: new Date(editPlaydateDraft.endTime).toISOString(),
+    });
+    cancelPlaydateEditing();
+  };
+
+  const togglePlaydateStatus = async (playdate: PlaydateHostSummary) => {
+    await applyPlaydateUpdate(playdate.id, { status: playdate.status === "scheduled" ? "closed" : "scheduled" });
+  };
+
+  const setPlaydateDecisionBusyFlag = (participantId: number, busy: boolean) => {
+    setPlaydateDecisionBusy((prev) => ({ ...prev, [participantId]: busy }));
+  };
+
+  const handlePlaydateParticipant = async (
+    playdateId: number,
+    participant: PlaydateParticipantSummary,
+    status: "approved" | "rejected" | "pending"
+  ) => {
+    try {
+      setPlaydatesBanner(null);
+      setPlaydatesError(null);
+      setPlaydateDecisionBusyFlag(participant.id, true);
+      await respondToJoinRequest(playdateId, participant.id, status);
+      await loadPlaydatesOverview();
+      const actionMessage =
+        status === "approved"
+          ? `${participant.user?.name ?? "Guest"} approved.`
+          : status === "rejected"
+          ? `${participant.user?.name ?? "Guest"} removed from guest list.`
+          : "Request moved back to pending.";
+      setPlaydatesBanner(actionMessage);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unable to update request.";
+      setPlaydatesError(message);
+    } finally {
+      setPlaydateDecisionBusyFlag(participant.id, false);
+    }
+  };
+
+  const loadPlaydateAudit = async (playdateId: number, participant: PlaydateParticipantSummary) => {
+    setPlaydateAuditState((prev) => ({
+      ...prev,
+      [participant.id]: {
+        audit: prev[participant.id]?.audit,
+        loading: true,
+        error: undefined,
+      },
+    }));
+    try {
+      const audit = await fetchPlaydateAudit(playdateId, participant.id);
+      setPlaydateAuditState((prev) => ({
+        ...prev,
+        [participant.id]: {
+          loading: false,
+          audit,
+        },
+      }));
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unable to load AI audit.";
+      setPlaydateAuditState((prev) => ({
+        ...prev,
+        [participant.id]: {
+          loading: false,
+          error: message,
+        },
+      }));
+    }
+  };
+
+  const setPlaydateMembershipBusyFlag = (playdateId: number, busy: boolean) => {
+    setPlaydateMembershipBusy((prev) => ({ ...prev, [playdateId]: busy }));
+  };
+
+  const leavePlaydateMembership = async (playdateId: number) => {
+    try {
+      setPlaydatesBanner(null);
+      setPlaydatesError(null);
+      setPlaydateMembershipBusyFlag(playdateId, true);
+      await leavePlaydate(playdateId);
+      await loadPlaydatesOverview();
+      setPlaydatesBanner("You have left the playdate.");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Could not leave playdate.";
+      setPlaydatesError(message);
+    } finally {
+      setPlaydateMembershipBusyFlag(playdateId, false);
+    }
+  };
+
+  const requestPlaydateRejoin = async (playdateId: number) => {
+    try {
+      setPlaydatesBanner(null);
+      setPlaydatesError(null);
+      setPlaydateMembershipBusyFlag(playdateId, true);
+      await requestJoinPlaydate(playdateId);
+      await loadPlaydatesOverview();
+      setPlaydatesBanner("Join request submitted.");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Could not submit join request.";
+      setPlaydatesError(message);
+    } finally {
+      setPlaydateMembershipBusyFlag(playdateId, false);
+    }
+  };
+
+  const pendingPlaydateRequests = useMemo(
+    () =>
+      hostedPlaydates.flatMap((playdate) =>
+        playdate.participants
+          .filter((participant) => participant.role === "guest" && participant.status === "pending")
+          .map((participant) => ({ playdate, participant }))
+      ),
+    [hostedPlaydates]
+  );
+
+  const pendingPlaydateCount = pendingPlaydateRequests.length;
+
+  const scheduleLocationSuggestions = useMemo(
+    () => buildLocationSuggestions(playdateScheduleForm.locationName),
+    [playdateScheduleForm.locationName]
+  );
+
+  const playdatesMapCenter = useMemo<Coordinates>(() => {
+    if (scheduleMapPosition) {
+      return scheduleMapPosition;
+    }
+    if (playdatePoint) {
+      return playdatePoint;
+    }
+    return { lat: 40.7831, lng: -73.9712 };
+  }, [scheduleMapPosition, playdatePoint]);
+
+  const playdatesMapZoom = scheduleMapPosition ? 14 : 12;
+
+  const playdatesMapMarkers = useMemo(() => {
+    const markers: Array<{ id: string; position: Coordinates; label: string }> = [];
+    hostedPlaydates.forEach((playdate) => {
+      const coords = findCoordinatesForLabel(playdate.locationName);
+      if (coords) {
+        markers.push({
+          id: `hosted-${playdate.id}`,
+          position: coords,
+          label: `${playdate.title} • Hosted by you`,
+        });
+      }
+    });
+    joinedPlaydateSummaries.forEach((membership) => {
+      const coords = findCoordinatesForLabel(membership.playdate.locationName);
+      if (coords) {
+        markers.push({
+          id: `joined-${membership.playdateId}-${membership.participantId}`,
+          position: coords,
+          label: `${membership.playdate.title} • Host: ${membership.playdate.host?.name ?? "Unknown"}`,
+        });
+      }
+    });
+    return markers;
+  }, [hostedPlaydates, joinedPlaydateSummaries]);
+
+  const handleScheduleMapSelect = (coords: Coordinates) => {
+    setScheduleMapPosition(coords);
+    const nearbyLabel = findLabelNearCoordinates(coords);
+    setPlaydateScheduleForm((prev) => ({
+      ...prev,
+      locationName: nearbyLabel ? nearbyLabel : `Pinned at ${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)}`,
+    }));
+    setShowScheduleSuggestions(false);
+  };
+
+  const PlaydateMapClickHandler = ({ onSelect }: { onSelect: (coords: Coordinates) => void }) => {
+    useMapEvents({
+      click: (event) => {
+        onSelect({ lat: event.latlng.lat, lng: event.latlng.lng });
+      },
+    });
+    return null;
+  };
+
+  const PlaydateMapAutoCenter = ({ center, zoom }: { center: Coordinates; zoom: number }) => {
+    const map = useMap();
+    useEffect(() => {
+      map.setView([center.lat, center.lng], zoom);
+    }, [center, zoom, map]);
+    return null;
+  };
 
   const dateLabel = useMemo(
     () =>
@@ -775,6 +1501,562 @@ export const Dashboard = () => {
         </p>
       )}
     </Section>
+  );
+
+  const renderPlaydates = () => (
+    <>
+      {playdatesBanner && <PlaydateBanner>{playdatesBanner}</PlaydateBanner>}
+      {playdatesError && <PlaydateBanner tone="error">{playdatesError}</PlaydateBanner>}
+
+      <PlaydateMapCard>
+        <PlaydateMapHeader>
+          <PlaydateMapTitle>Live map</PlaydateMapTitle>
+          <PlaydateMapHint>
+            Click the map to drop a pin or zoom to scout nearby venues. Hosted and joined playdates appear when we recognise their location.
+          </PlaydateMapHint>
+        </PlaydateMapHeader>
+        <PlaydateMapViewport>
+          <MapContainer
+            center={[playdatesMapCenter.lat, playdatesMapCenter.lng]}
+            zoom={playdatesMapZoom}
+            style={{ width: "100%", height: "100%" }}
+            scrollWheelZoom
+          >
+            <TileLayer
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            />
+            <PlaydateMapAutoCenter center={playdatesMapCenter} zoom={playdatesMapZoom} />
+            <PlaydateMapClickHandler onSelect={handleScheduleMapSelect} />
+            {scheduleMapPosition && (
+              <>
+                <Marker position={[scheduleMapPosition.lat, scheduleMapPosition.lng]}>
+                  <Popup>Selected playdate location</Popup>
+                </Marker>
+                <Circle
+                  center={[scheduleMapPosition.lat, scheduleMapPosition.lng]}
+                  radius={120}
+                  pathOptions={{ color: "#6b5bff", fillColor: "#6b5bff", fillOpacity: 0.12 }}
+                />
+              </>
+            )}
+            {playdatesMapMarkers.map((marker) => (
+              <Marker key={marker.id} position={[marker.position.lat, marker.position.lng]}>
+                <Popup>{marker.label}</Popup>
+              </Marker>
+            ))}
+          </MapContainer>
+        </PlaydateMapViewport>
+      </PlaydateMapCard>
+
+      <Section title="Schedule a playdate">
+        <PlaydateSectionBody>
+          <PlaydateForm onSubmit={submitPlaydateSchedule}>
+            <FormControl>
+              <label htmlFor="playdate-title">Title</label>
+              <input
+                id="playdate-title"
+                type="text"
+                value={playdateScheduleForm.title}
+                onChange={handlePlaydateScheduleChange("title")}
+                placeholder="Saturday explorers"
+                required
+              />
+            </FormControl>
+            <FormControl>
+              <label htmlFor="playdate-activity">Activity</label>
+              <input
+                id="playdate-activity"
+                type="text"
+                value={playdateScheduleForm.activity}
+                onChange={handlePlaydateScheduleChange("activity")}
+                placeholder="STEM lab, park meetup..."
+                required
+              />
+            </FormControl>
+            <FormControl>
+              <label htmlFor="playdate-location">Location</label>
+              <input
+                id="playdate-location"
+                type="text"
+                value={playdateScheduleForm.locationName}
+                onChange={handlePlaydateScheduleChange("locationName")}
+                placeholder="Central Park – North Meadow"
+                required
+              />
+            </FormControl>
+            {scheduleLocationSuggestions.length > 0 && showScheduleSuggestions && (
+              <PlaydateFullRow>
+                <LocationSuggestionSelect
+                  value=""
+                  onChange={(event) => {
+                    const suggestion = event.target.value;
+                    if (!suggestion) {
+                      return;
+                    }
+                    const match = scheduleLocationSuggestions.find((item) => item.label === suggestion);
+                    setPlaydateScheduleForm((prev) => ({
+                      ...prev,
+                      locationName: suggestion,
+                    }));
+                    if (match?.coordinates) {
+                      setScheduleMapPosition(match.coordinates);
+                    }
+                    setShowScheduleSuggestions(false);
+                  }}
+                >
+                  <option value="">Suggested locations…</option>
+                  {scheduleLocationSuggestions.map((suggestion) => (
+                    <option key={`schedule-${suggestion.label}`} value={suggestion.label}>
+                      {suggestion.label}
+                    </option>
+                  ))}
+                </LocationSuggestionSelect>
+              </PlaydateFullRow>
+            )}
+            <FormControl>
+              <label htmlFor="playdate-max">Max guests</label>
+              <input
+                id="playdate-max"
+                type="number"
+                min={0}
+                value={playdateScheduleForm.maxGuests}
+                onChange={handlePlaydateScheduleChange("maxGuests")}
+                placeholder="4"
+              />
+            </FormControl>
+            <FormControl>
+              <label htmlFor="playdate-start">Starts</label>
+              <input
+                id="playdate-start"
+                type="datetime-local"
+                value={playdateScheduleForm.startTime}
+                onChange={handlePlaydateScheduleChange("startTime")}
+                required
+              />
+            </FormControl>
+            <FormControl>
+              <label htmlFor="playdate-end">Ends</label>
+              <input
+                id="playdate-end"
+                type="datetime-local"
+                value={playdateScheduleForm.endTime}
+                onChange={handlePlaydateScheduleChange("endTime")}
+                required
+              />
+            </FormControl>
+            <PlaydateFullRow>
+              <FormControl>
+                <label htmlFor="playdate-description">Description</label>
+                <textarea
+                  id="playdate-description"
+                  value={playdateScheduleForm.description}
+                  onChange={handlePlaydateScheduleChange("description")}
+                  rows={3}
+                  placeholder="Share supplies or tips for guardians."
+                />
+              </FormControl>
+            </PlaydateFullRow>
+            <PlaydateFullRow>
+              <FormControl>
+                <label htmlFor="playdate-notes">Host notes</label>
+                <textarea
+                  id="playdate-notes"
+                  value={playdateScheduleForm.notes}
+                  onChange={handlePlaydateScheduleChange("notes")}
+                  rows={2}
+                  placeholder="Reminder: bring sunscreen and reusable bottles."
+                />
+              </FormControl>
+            </PlaydateFullRow>
+            <PlaydateFullRow>
+              <PlaydateButtonRow>
+                <PlaydateButton type="submit" disabled={playdateCreating}>
+                  {playdateCreating ? "Scheduling..." : "Schedule playdate"}
+                </PlaydateButton>
+                <PlaydateButton
+                  type="button"
+                  variant="ghost"
+                  disabled={playdateCreating}
+                  onClick={() => setPlaydateScheduleForm(buildDefaultPlaydateForm())}
+                >
+                  Reset form
+                </PlaydateButton>
+              </PlaydateButtonRow>
+            </PlaydateFullRow>
+        </PlaydateForm>
+      </PlaydateSectionBody>
+    </Section>
+
+      <Section title={`Review join requests (${pendingPlaydateCount})`}>
+        <PlaydateSectionBody>
+          {playdatesLoading && <div>Scanning for pending guests...</div>}
+          {!playdatesLoading && pendingPlaydateCount === 0 && (
+            <PlaydateEmpty>No one is waiting for approval. Invite your trusted friends to join in.</PlaydateEmpty>
+          )}
+          {!playdatesLoading &&
+            pendingPlaydateRequests.map(({ playdate, participant }) => {
+              const audit = playdateAuditState[participant.id];
+              return (
+                <PlaydateCard key={`${playdate.id}-${participant.id}`}>
+                  <PlaydateCardHeader>
+                    <div>
+                      <PlaydateCardTitle>{participant.user?.name ?? "Unknown guardian"}</PlaydateCardTitle>
+                      <PlaydateCardMeta>
+                        <span>Requested for {playdate.title}</span>
+                        <span>
+                          {new Date(playdate.startTime).toLocaleString()} →
+                          {" "}
+                          {new Date(playdate.endTime).toLocaleTimeString()}
+                        </span>
+                        <span>{playdate.locationName}</span>
+                      </PlaydateCardMeta>
+                    </div>
+                    <PlaydateTag>Awaiting review</PlaydateTag>
+                  </PlaydateCardHeader>
+                  <IntroCopy>
+                    AI checks mutual friends, distance, PlayDate history, and public social cues so you can approve with
+                    confidence.
+                  </IntroCopy>
+                  <PlaydateButtonRow>
+                    <PlaydateButton
+                      type="button"
+                      size="sm"
+                      disabled={playdateDecisionBusy[participant.id]}
+                      onClick={() => handlePlaydateParticipant(playdate.id, participant, "approved")}
+                    >
+                      Approve
+                    </PlaydateButton>
+                    <PlaydateButton
+                      type="button"
+                      size="sm"
+                      variant="danger"
+                      disabled={playdateDecisionBusy[participant.id]}
+                      onClick={() => handlePlaydateParticipant(playdate.id, participant, "rejected")}
+                    >
+                      Reject
+                    </PlaydateButton>
+                    <PlaydateButton
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      disabled={audit?.loading}
+                      onClick={() => loadPlaydateAudit(playdate.id, participant)}
+                    >
+                      {audit?.loading ? "Loading AI audit..." : audit?.audit ? "Refresh AI audit" : "Run AI audit"}
+                    </PlaydateButton>
+                  </PlaydateButtonRow>
+                  {audit?.error && <PlaydateBanner tone="error">{audit.error}</PlaydateBanner>}
+                  {audit?.audit && (
+                    <PlaydateAuditCard>
+                      <strong>{audit.audit.summary}</strong>
+                      <PlaydateCardMeta>
+                        <span>Trust score: {audit.audit.trustScore} · Risk level: {audit.audit.riskLevel}</span>
+                        <span>
+                          Mutual friends: {audit.audit.mutualFriends}
+                          {audit.audit.distanceKm != null && ` · ${audit.audit.distanceKm.toFixed(1)} km away`}
+                        </span>
+                        {audit.audit.kidHighlights.length > 0 && (
+                          <span>
+                            Kid interests:
+                            {" "}
+                            {audit.audit.kidHighlights
+                              .map((kid) => `${kid.kidName} (${kid.favoriteActivity})`)
+                              .join(", ")}
+                          </span>
+                        )}
+                      </PlaydateCardMeta>
+                      <PlaydateParticipantList>
+                        {audit.audit.factors.map((factor) => (
+                          <PlaydateParticipantRow key={factor.label}>
+                            <strong>{factor.label}</strong>
+                            <span>{factor.detail}</span>
+                          </PlaydateParticipantRow>
+                        ))}
+                      </PlaydateParticipantList>
+                    </PlaydateAuditCard>
+                  )}
+                </PlaydateCard>
+              );
+            })}
+        </PlaydateSectionBody>
+      </Section>
+
+      <Section title={`Hosted playdates (${hostedPlaydates.length})`}>
+        <PlaydateSectionBody>
+          {playdatesLoading && <div>Loading hosted playdates...</div>}
+          {!playdatesLoading && hostedPlaydates.length === 0 && (
+            <PlaydateEmpty>Start your first playdate above to see it listed here.</PlaydateEmpty>
+          )}
+          {!playdatesLoading &&
+            hostedPlaydates.map((playdate) => {
+              const approvedGuests = playdate.participants.filter(
+                (participant) => participant.role === "guest" && participant.status === "approved"
+              );
+              const pendingGuests = playdate.participants.filter(
+                (participant) => participant.role === "guest" && participant.status === "pending"
+              );
+              const isEditing = editingPlaydateId === playdate.id && editPlaydateDraft;
+              const editLocationSuggestions = isEditing && editPlaydateDraft
+                ? buildLocationSuggestions(editPlaydateDraft.locationName)
+                : [];
+              const showEditSuggestions = editSuggestionVisibility[playdate.id] !== false && editLocationSuggestions.length > 0;
+              return (
+                <PlaydateCard key={playdate.id}>
+                  <PlaydateCardHeader>
+                    <div>
+                      <PlaydateCardTitle>{playdate.title}</PlaydateCardTitle>
+                      <PlaydateCardMeta>
+                        <span>{playdate.activity}</span>
+                        <span>
+                          {new Date(playdate.startTime).toLocaleString()} →
+                          {" "}
+                          {new Date(playdate.endTime).toLocaleTimeString()}
+                        </span>
+                        <span>{playdate.locationName}</span>
+                        {playdate.maxGuests != null && (
+                          <span>
+                            {approvedGuests.length}/{playdate.maxGuests} guests approved
+                          </span>
+                        )}
+                        <span>Pending requests: {pendingGuests.length}</span>
+                      </PlaydateCardMeta>
+                    </div>
+                    <PlaydateTag tone={playdate.status === "scheduled" ? "positive" : "warning"}>
+                      {playdate.status === "scheduled" ? "Open" : "Closed"}
+                    </PlaydateTag>
+                  </PlaydateCardHeader>
+
+                  {isEditing && editPlaydateDraft ? (
+                    <PlaydateSectionBody>
+                      <PlaydateForm onSubmit={submitPlaydateEdit}>
+                        <FormControl>
+                          <label htmlFor={`edit-title-${playdate.id}`}>Title</label>
+                          <input
+                            id={`edit-title-${playdate.id}`}
+                            type="text"
+                            value={editPlaydateDraft.title}
+                            onChange={(event) => updatePlaydateDraft("title", event)}
+                            required
+                          />
+                        </FormControl>
+                        <FormControl>
+                          <label htmlFor={`edit-activity-${playdate.id}`}>Activity</label>
+                          <input
+                            id={`edit-activity-${playdate.id}`}
+                            type="text"
+                            value={editPlaydateDraft.activity}
+                            onChange={(event) => updatePlaydateDraft("activity", event)}
+                            required
+                          />
+                        </FormControl>
+                        <FormControl>
+                          <label htmlFor={`edit-location-${playdate.id}`}>Location</label>
+                          <input
+                            id={`edit-location-${playdate.id}`}
+                            type="text"
+                            value={editPlaydateDraft.locationName}
+                            onChange={(event) => updatePlaydateDraft("locationName", event)}
+                            required
+                          />
+                        </FormControl>
+                        {showEditSuggestions && (
+                          <PlaydateFullRow>
+                            <LocationSuggestionSelect
+                              value=""
+                              onChange={(event) => {
+                                const suggestion = event.target.value;
+                                if (!suggestion) {
+                                  return;
+                                }
+                                const match = editLocationSuggestions.find((item) => item.label === suggestion);
+                                setEditPlaydateDraft((prev) =>
+                                  prev ? { ...prev, locationName: suggestion } : prev
+                                );
+                                if (match?.coordinates && editingPlaydateId === playdate.id) {
+                                  setScheduleMapPosition(match.coordinates);
+                                }
+                                setEditSuggestionVisibility((prev) => ({
+                                  ...prev,
+                                  [playdate.id]: false,
+                                }));
+                              }}
+                            >
+                              <option value="">Suggested locations…</option>
+                              {editLocationSuggestions.map((suggestion) => (
+                                <option key={`edit-${playdate.id}-${suggestion.label}`} value={suggestion.label}>
+                                  {suggestion.label}
+                                </option>
+                              ))}
+                            </LocationSuggestionSelect>
+                          </PlaydateFullRow>
+                        )}
+                        <FormControl>
+                          <label htmlFor={`edit-max-${playdate.id}`}>Max guests</label>
+                          <input
+                            id={`edit-max-${playdate.id}`}
+                            type="number"
+                            min={0}
+                            value={editPlaydateDraft.maxGuests}
+                            onChange={(event) => updatePlaydateDraft("maxGuests", event)}
+                          />
+                        </FormControl>
+                        <FormControl>
+                          <label htmlFor={`edit-start-${playdate.id}`}>Starts</label>
+                          <input
+                            id={`edit-start-${playdate.id}`}
+                            type="datetime-local"
+                            value={editPlaydateDraft.startTime}
+                            onChange={(event) => updatePlaydateDraft("startTime", event)}
+                            required
+                          />
+                        </FormControl>
+                        <FormControl>
+                          <label htmlFor={`edit-end-${playdate.id}`}>Ends</label>
+                          <input
+                            id={`edit-end-${playdate.id}`}
+                            type="datetime-local"
+                            value={editPlaydateDraft.endTime}
+                            onChange={(event) => updatePlaydateDraft("endTime", event)}
+                            required
+                          />
+                        </FormControl>
+                        <PlaydateFullRow>
+                          <FormControl>
+                            <label htmlFor={`edit-description-${playdate.id}`}>Description</label>
+                            <textarea
+                              id={`edit-description-${playdate.id}`}
+                              value={editPlaydateDraft.description}
+                              onChange={(event) => updatePlaydateDraft("description", event)}
+                              rows={3}
+                            />
+                          </FormControl>
+                        </PlaydateFullRow>
+                        <PlaydateFullRow>
+                          <FormControl>
+                            <label htmlFor={`edit-notes-${playdate.id}`}>Host notes</label>
+                            <textarea
+                              id={`edit-notes-${playdate.id}`}
+                              value={editPlaydateDraft.notes}
+                              onChange={(event) => updatePlaydateDraft("notes", event)}
+                              rows={2}
+                            />
+                          </FormControl>
+                        </PlaydateFullRow>
+                        <PlaydateFullRow>
+                          <PlaydateButtonRow>
+                            <PlaydateButton type="submit" disabled={savingPlaydateId === playdate.id}>
+                              {savingPlaydateId === playdate.id ? "Saving..." : "Save changes"}
+                            </PlaydateButton>
+                            <PlaydateButton type="button" variant="ghost" onClick={cancelPlaydateEditing}>
+                              Cancel
+                            </PlaydateButton>
+                          </PlaydateButtonRow>
+                        </PlaydateFullRow>
+                      </PlaydateForm>
+                    </PlaydateSectionBody>
+                  ) : (
+                    <PlaydateButtonRow>
+                      <PlaydateButton
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        disabled={savingPlaydateId === playdate.id}
+                        onClick={() => togglePlaydateStatus(playdate)}
+                      >
+                        {savingPlaydateId === playdate.id
+                          ? "Updating..."
+                          : playdate.status === "scheduled"
+                          ? "Close playdate"
+                          : "Reopen playdate"}
+                      </PlaydateButton>
+                      <PlaydateButton type="button" size="sm" onClick={() => beginPlaydateEditing(playdate)}>
+                        Reschedule / edit
+                      </PlaydateButton>
+                    </PlaydateButtonRow>
+                  )}
+                </PlaydateCard>
+              );
+            })}
+        </PlaydateSectionBody>
+      </Section>
+
+      <Section title={`Playdates you're joining (${joinedPlaydateSummaries.length})`}>
+        <PlaydateSectionBody>
+          {playdatesLoading && <div>Loading your playdates...</div>}
+          {!playdatesLoading && joinedPlaydateSummaries.length === 0 && (
+            <PlaydateEmpty>Ask a trusted friend for an invite to get started.</PlaydateEmpty>
+          )}
+          {!playdatesLoading &&
+            joinedPlaydateSummaries.map((membership) => {
+              const playdate = membership.playdate;
+              const busy = playdateMembershipBusy[membership.playdateId];
+              const statusTone =
+                membership.status === "approved"
+                  ? "positive"
+                  : membership.status === "pending"
+                  ? "neutral"
+                  : "warning";
+              const statusLabel =
+                membership.status === "approved"
+                  ? "Approved"
+                  : membership.status === "pending"
+                  ? "Pending host review"
+                  : membership.status === "rejected"
+                  ? "Rejected"
+                  : "Left";
+              return (
+                <PlaydateCard key={`${membership.playdateId}-${membership.participantId}`}>
+                  <PlaydateCardHeader>
+                    <div>
+                      <PlaydateCardTitle>{playdate.title}</PlaydateCardTitle>
+                      <PlaydateCardMeta>
+                        <span>{playdate.activity}</span>
+                        <span>
+                          {new Date(playdate.startTime).toLocaleString()} →
+                          {" "}
+                          {new Date(playdate.endTime).toLocaleTimeString()}
+                        </span>
+                        <span>{playdate.locationName}</span>
+                        <span>Host: {playdate.host?.name ?? "Unknown"}</span>
+                      </PlaydateCardMeta>
+                    </div>
+                    <PlaydateTag tone={statusTone}>{statusLabel}</PlaydateTag>
+                  </PlaydateCardHeader>
+                  <PlaydateButtonRow>
+                    {(membership.status === "approved" || membership.status === "pending") && (
+                      <PlaydateButton
+                        type="button"
+                        size="sm"
+                        variant={membership.status === "approved" ? "danger" : "ghost"}
+                        disabled={busy}
+                        onClick={() => leavePlaydateMembership(membership.playdateId)}
+                      >
+                        {busy
+                          ? "Updating..."
+                          : membership.status === "approved"
+                          ? "Leave playdate"
+                          : "Cancel request"}
+                      </PlaydateButton>
+                    )}
+                    {(membership.status === "left" || membership.status === "rejected") && (
+                      <PlaydateButton
+                        type="button"
+                        size="sm"
+                        disabled={busy}
+                        onClick={() => requestPlaydateRejoin(membership.playdateId)}
+                      >
+                        {busy ? "Sending..." : "Request to rejoin"}
+                      </PlaydateButton>
+                    )}
+                  </PlaydateButtonRow>
+                  {membership.decisionNote && <PlaydateCardMeta>{membership.decisionNote}</PlaydateCardMeta>}
+                </PlaydateCard>
+              );
+            })}
+        </PlaydateSectionBody>
+      </Section>
+    </>
   );
 
   const hostedPlaydate = useMemo(() => {
@@ -1113,56 +2395,6 @@ export const Dashboard = () => {
     </>
   );
 
-  const renderMap = () => (
-    <MapCard>
-      <ViewPill>Playdates · manage</ViewPill>
-      <MapIntro>
-        Fine-tune the live map to match your filters, query nearby hosts, approve or decline requests, and launch new
-        playdates in seconds.
-      </MapIntro>
-      <WorldMap showHeader={false} onPlaydateSelect={setSelectedPlaydate} />
-      <MapFilters>
-        <FilterLabel>
-          Show
-          <select value={playdateScope} onChange={(event) => setPlaydateScope(event.target.value)}>
-            <option value="nearby">Within 1 mile</option>
-            <option value="city">Across the city</option>
-            <option value="favorites">Favorited spots</option>
-          </select>
-        </FilterLabel>
-        <FilterLabel>
-          Sort by
-          <select value={playdateSort} onChange={(event) => setPlaydateSort(event.target.value)}>
-            <option value="upcoming">Upcoming first</option>
-            <option value="distance">Distance</option>
-            <option value="popularity">Popularity</option>
-          </select>
-        </FilterLabel>
-        <ScheduleButton type="button">Plan a new playdate</ScheduleButton>
-      </MapFilters>
-      {selectedPlaydate && (
-        <SelectedPlaydateCard>
-          <SelectedTitle>{selectedPlaydate.headline ?? "Playdate idea"}</SelectedTitle>
-          {selectedPlaydate.message && <p style={{ margin: 0 }}>{selectedPlaydate.message}</p>}
-          {selectedPlaydate.recommendations && selectedPlaydate.recommendations.length > 0 && (
-            <SelectedList>
-              {selectedPlaydate.recommendations.map((detail) => (
-                <li key={`${detail.kidId}-${detail.matchName}`}>
-                  Match {detail.kidName} with {detail.matchName} for {detail.matchActivity.toLowerCase()} — score {detail.compatibilityScore}
-                  {" "}
-                  ({detail.suggestedSlot})
-                </li>
-              ))}
-            </SelectedList>
-          )}
-          {!selectedPlaydate.recommendations?.length && (
-            <SelectedHint>Click another pin to preview more recommendations.</SelectedHint>
-          )}
-        </SelectedPlaydateCard>
-      )}
-    </MapCard>
-  );
-
   const renderFriends = () => (
     <EmbeddedPanel>
       <ViewPill>Friends hub</ViewPill>
@@ -1198,8 +2430,8 @@ export const Dashboard = () => {
 
   const renderView = () => {
     switch (activeView) {
-      case "map":
-        return renderMap();
+      case "playdates":
+        return renderPlaydates();
       case "friends":
         return renderFriends();
       case "kids":
@@ -1257,13 +2489,8 @@ export const Dashboard = () => {
               </NavButton>
             </li>
             <li>
-              <NavButton type="button" onClick={() => navigate("/playdates")} $active={false}>
+              <NavButton type="button" onClick={() => setActiveView("playdates")} $active={activeView === "playdates"}>
                 <NavElementTitle>Playdates</NavElementTitle>
-              </NavButton>
-            </li>
-            <li>
-              <NavButton type="button" onClick={() => setActiveView("map")} $active={activeView === "map"}>
-                <NavElementTitle>Live map</NavElementTitle>
               </NavButton>
             </li>
             <li>
@@ -1272,15 +2499,15 @@ export const Dashboard = () => {
               </NavButton>
             </li>
             <li>
-              <NavButton type="button" onClick={() => setActiveView("friends")} $active={activeView === "friends"}>
-                <NavElementTitle>Friends</NavElementTitle>
-              </NavButton>
-            </li>
-            <li>
-              <NavButton type="button" onClick={() => setActiveView("profile")} $active={activeView === "profile"}>
-                <NavElementTitle>Profile</NavElementTitle>
-              </NavButton>
-            </li>
+          <NavButton type="button" onClick={() => setActiveView("friends")} $active={activeView === "friends"}>
+            <NavElementTitle>Friends</NavElementTitle>
+          </NavButton>
+        </li>
+        <li>
+          <NavButton type="button" onClick={() => setActiveView("profile")} $active={activeView === "profile"}>
+            <NavElementTitle>Profile</NavElementTitle>
+          </NavButton>
+        </li>
           </NavList>
         </Sidebar>
 
