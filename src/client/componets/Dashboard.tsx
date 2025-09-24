@@ -1,5 +1,6 @@
 import { ChangeEvent, FormEvent, MouseEvent, useCallback, useEffect, useMemo, useState } from "react";
 import styled from "@emotion/styled";
+import { Link, useNavigate } from "react-router-dom";
 import { MapContainer, TileLayer, Circle, Marker, Popup } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import { useAuth } from "../hooks/AuthProvider";
@@ -572,6 +573,7 @@ const SelectedHint = styled.p({
 });
 
 export const Dashboard = () => {
+  const navigate = useNavigate();
   const [kids, setKids] = useState<Kid[]>([]);
   const [activeView, setActiveView] = useState<DashboardView>("overview");
   const [playdateScope, setPlaydateScope] = useState("nearby");
@@ -725,6 +727,10 @@ export const Dashboard = () => {
           activity: item.activity,
           host: item.friendName ?? "Friendly host",
           position: [item.friendLatitude as number, item.friendLongitude as number] as [number, number],
+          locationLabel: resolveLocationLabel({
+            lat: item.friendLatitude as number,
+            lng: item.friendLongitude as number,
+          }),
         })),
     [filteredLeaderboard]
   );
@@ -918,6 +924,8 @@ export const Dashboard = () => {
                   <strong>{marker.activity}</strong>
                   <br />
                   Host: {marker.host}
+                  <br />
+                  Location: {marker.locationLabel}
                 </Popup>
               </Marker>
             ))}
@@ -1249,8 +1257,13 @@ export const Dashboard = () => {
               </NavButton>
             </li>
             <li>
-              <NavButton type="button" onClick={() => setActiveView("map")} $active={activeView === "map"}>
+              <NavButton type="button" onClick={() => navigate("/playdates")} $active={false}>
                 <NavElementTitle>Playdates</NavElementTitle>
+              </NavButton>
+            </li>
+            <li>
+              <NavButton type="button" onClick={() => setActiveView("map")} $active={activeView === "map"}>
+                <NavElementTitle>Live map</NavElementTitle>
               </NavButton>
             </li>
             <li>

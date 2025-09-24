@@ -6,6 +6,8 @@ import sequelize from './initSeq'
 import { User, initUser } from './models/User'
 import Kid, { initKid, defineKidAssociations } from './models/Kids'
 import { FriendLink, initFriendLink, defineAssociations as defFriendAsso } from './models/FriendLink'
+import { Playdate, initPlaydate, definePlaydateAssociations } from './models/Playdate'
+import { PlaydateParticipant, initPlaydateParticipant, definePlaydateParticipantAssociations } from './models/PlaydateParticipant'
 import { AgentTask, initAgentTask } from './models/AgentTask'
 import APIKidRoutes from './routes/kids'
 import APIFriendRoutes from './routes/friends'
@@ -13,6 +15,7 @@ import PlaydatePointRoutes from './routes/playdate_point'
 import TaskRoutes from './routes/tasks'
 import TaskEventRoutes from './routes/task_events'
 import RecommendationRoutes from './routes/recommendations'
+import PlaydateRoutes from './routes/playdates'
 import AuthRoutes from './routes/auth'
 import UserRoutes from './routes/users'
 import { populateDatabase, ensureDefaultUsers } from './initData'
@@ -29,6 +32,10 @@ const start = async () => {
   defineKidAssociations();
   initFriendLink(sequelize);
   defFriendAsso();
+  initPlaydate(sequelize);
+  initPlaydateParticipant(sequelize);
+  definePlaydateAssociations();
+  definePlaydateParticipantAssociations();
   initAgentTask(sequelize);
 
   const { serve, app } = await createServer();
@@ -75,6 +82,7 @@ const start = async () => {
   app.use('/api/tasks', TaskRoutes);
   app.use('/api/task-events', TaskEventRoutes);
   app.use('/api/recommendations', RecommendationRoutes);
+  app.use('/api/playdates', PlaydateRoutes);
   app.use('/api/users', UserRoutes);
   app.use('/auth', AuthRoutes);
 

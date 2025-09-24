@@ -71,6 +71,122 @@ export interface PlaydateUpdatePayload {
   localInsight?: LocalInsight;
 }
 
+export type PlaydateParticipantRole = 'host' | 'guest';
+export type PlaydateParticipantStatus = 'pending' | 'approved' | 'rejected' | 'left';
+
+export interface PlaydateParticipantSummary {
+  id: number;
+  userId: number;
+  role: PlaydateParticipantRole;
+  status: PlaydateParticipantStatus;
+  joinedAt: string | null;
+  decisionNote: string | null;
+  user?: {
+    id: number;
+    name: string;
+  };
+}
+
+export interface PlaydateMetrics {
+  approvedGuests: number;
+  pendingGuests: number;
+}
+
+export interface PlaydateHostSummary {
+  id: number;
+  title: string;
+  activity: string;
+  description: string | null;
+  locationName: string;
+  startTime: string;
+  endTime: string;
+  status: 'scheduled' | 'closed';
+  maxGuests: number | null;
+  notes: string | null;
+  participants: PlaydateParticipantSummary[];
+  metrics: PlaydateMetrics;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface JoinedPlaydateSummary {
+  playdateId: number;
+  participantId: number;
+  role: PlaydateParticipantRole;
+  status: PlaydateParticipantStatus;
+  joinedAt: string | null;
+  decisionNote: string | null;
+  playdate: {
+    id: number;
+    title: string;
+    activity: string;
+    description: string | null;
+    locationName: string;
+    startTime: string;
+    endTime: string;
+    status: 'scheduled' | 'closed';
+    maxGuests: number | null;
+    notes: string | null;
+    host?: {
+      id: number;
+      name: string;
+    };
+  };
+}
+
+export interface PlaydatesOverview {
+  hosted: PlaydateHostSummary[];
+  joined: JoinedPlaydateSummary[];
+}
+
+export interface SchedulePlaydateRequest {
+  title: string;
+  activity: string;
+  locationName: string;
+  startTime: string;
+  endTime: string;
+  description?: string | null;
+  maxGuests?: number | null;
+  notes?: string | null;
+}
+
+export type UpdatePlaydateRequest = Partial<SchedulePlaydateRequest & { status: 'scheduled' | 'closed' }>;
+
+export interface PlaydateJoinResponse {
+  participant: PlaydateParticipantSummary;
+  message?: string;
+}
+
+export type AuditTone = 'positive' | 'caution' | 'neutral';
+
+export interface PlaydateAuditFactor {
+  label: string;
+  detail: string;
+  tone: AuditTone;
+}
+
+export interface PlaydateAuditKidHighlight {
+  kidName: string;
+  age: number;
+  favoriteActivity: string;
+  overlapActivity: boolean;
+}
+
+export interface PlaydateApplicantAudit {
+  applicantId: number;
+  applicantName: string;
+  summary: string;
+  trustScore: number;
+  riskLevel: 'low' | 'medium' | 'high';
+  distanceKm: number | null;
+  mutualFriends: number;
+  directFriendship: boolean;
+  pastPlaydatesTogether: number;
+  upcomingSameHost: number;
+  kidHighlights: PlaydateAuditKidHighlight[];
+  factors: PlaydateAuditFactor[];
+}
+
 export interface AgentInboxItem<T = unknown> {
   id: string;
   type: string;

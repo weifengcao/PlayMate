@@ -1,4 +1,4 @@
-import { FriendshipState, Kid, PlaydateCoordinates, Friend, PlaydateUpdatePayload, AgentInboxItem, FriendRecommendationPayload, ActivityLeaderboardItem, LeaderboardSort, FriendRecommendationEnvelope } from "./types";
+import { FriendshipState, Kid, PlaydateCoordinates, Friend, PlaydateUpdatePayload, AgentInboxItem, FriendRecommendationPayload, ActivityLeaderboardItem, LeaderboardSort, FriendRecommendationEnvelope, PlaydatesOverview, SchedulePlaydateRequest, PlaydateHostSummary, UpdatePlaydateRequest, PlaydateJoinResponse, PlaydateApplicantAudit } from "./types";
 import { subscribeToTask, TaskUpdate, subscribeToAllTasks } from "./taskEvents";
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
@@ -197,6 +197,56 @@ export async function getAgentInbox(): Promise<AgentInboxItem<FriendRecommendati
 }
 
 export const subscribeToAllTaskUpdates = subscribeToAllTasks;
+
+export async function getPlaydatesOverview(): Promise<PlaydatesOverview> {
+  return fetchApi<PlaydatesOverview>("/api/playdates");
+}
+
+export async function schedulePlaydate(payload: SchedulePlaydateRequest): Promise<PlaydateHostSummary> {
+  return fetchApi<PlaydateHostSummary>("/api/playdates", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updatePlaydate(playdateId: number, payload: UpdatePlaydateRequest): Promise<PlaydateHostSummary> {
+  return fetchApi<PlaydateHostSummary>(`/api/playdates/${playdateId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function requestJoinPlaydate(playdateId: number): Promise<PlaydateJoinResponse> {
+  return fetchApi<PlaydateJoinResponse>(`/api/playdates/${playdateId}/join`, {
+    method: "POST",
+  });
+}
+
+export async function leavePlaydate(playdateId: number): Promise<PlaydateJoinResponse> {
+  return fetchApi<PlaydateJoinResponse>(`/api/playdates/${playdateId}/leave`, {
+    method: "POST",
+  });
+}
+
+export async function respondToJoinRequest(
+  playdateId: number,
+  participantId: number,
+  status: 'approved' | 'rejected' | 'pending',
+  decisionNote?: string | null
+): Promise<PlaydateJoinResponse> {
+  return fetchApi<PlaydateJoinResponse>(`/api/playdates/${playdateId}/participants/${participantId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ status, decisionNote: decisionNote ?? null }),
+  });
+}
+
+export async function fetchPlaydateAudit(playdateId: number, participantId: number): Promise<PlaydateApplicantAudit> {
+  const response = await fetchApi<{ audit: PlaydateApplicantAudit }>(`/api/playdates/${playdateId}/audit/${participantId}`);
+  return response.audit;
+}
 
 export async function deleteFriend(friendId: number): Promise<void> {
   const submission = await fetchApi<{ taskId: string }>("/api/friends/delete", {

@@ -94,7 +94,7 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
           setUser(userName);
           setToken(userName);
           localStorage.setItem("site", userName);
-          navigate("/");
+          navigate("/dashboard");
           return { status: "success", name: userName };
         }
 
@@ -126,7 +126,7 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
           setUser(userName);
           setToken(userName);
           localStorage.setItem("site", userName);
-          navigate("/");
+          navigate("/dashboard");
           return { status: "success", name: userName };
         }
 
@@ -188,7 +188,7 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
           setUser(userName);
           setToken(userName);
           localStorage.setItem("site", userName);
-          navigate("/");
+          navigate("/dashboard");
           return { status: "success", name: userName };
         }
 
@@ -233,7 +233,7 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
           setUser(userName);
           setToken(userName);
           localStorage.setItem("site", userName);
-          navigate("/");
+          navigate("/dashboard");
           return { status: "success", name: userName };
         }
 
