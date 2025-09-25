@@ -56,8 +56,11 @@ export async function populateDatabase() {
     await FriendLink.create({
       askerId: 1,
       receiverId: 2,
-      state: 0,
+      state: 1,
     });
+  } else {
+    await FriendLink.update({ state: 1 }, { where: { askerId: 1, receiverId: 2 } });
+    await FriendLink.update({ state: 1 }, { where: { askerId: 2, receiverId: 1 } });
   }
 
   const playdateCount = await Playdate.count();
@@ -91,6 +94,56 @@ export async function populateDatabase() {
       playdateId: playdate.id,
       userId: 2,
       role: 'guest',
+      status: 'approved',
+      joinedAt: now,
+    });
+
+    const bradStart = new Date(now.getTime() + 1000 * 60 * 60 * 72);
+    const bradEnd = new Date(bradStart.getTime() + 1000 * 60 * 120);
+    const bradPlaydate = await Playdate.create({
+      hostId: 2,
+      title: 'Lego Builders Hangout',
+      activity: 'Creative Lego session',
+      description: 'Collaborative Lego builds with snacks provided by Brad.',
+      locationName: 'Redwood City Maker Space',
+      startTime: bradStart,
+      endTime: bradEnd,
+      status: 'scheduled',
+      maxGuests: 5,
+      notes: 'Bring favorite mini figures. Parking validated.',
+    });
+
+    await PlaydateParticipant.create({
+      playdateId: bradPlaydate.id,
+      userId: 2,
+      role: 'host',
+      status: 'approved',
+      joinedAt: now,
+    });
+  }
+
+  const bradPlaydateExists = await Playdate.findOne({ where: { hostId: 2 } });
+  if (!bradPlaydateExists) {
+    const now = new Date();
+    const start = new Date(now.getTime() + 1000 * 60 * 60 * 96);
+    const end = new Date(start.getTime() + 1000 * 60 * 120);
+    const bradPlaydate = await Playdate.create({
+      hostId: 2,
+      title: 'Brad\'s STEM Lab',
+      activity: 'Robotics & LEGO STEM challenges',
+      description: 'Hands-on builds, sensor demos, and snack break included.',
+      locationName: 'Redwood City Maker Space',
+      startTime: start,
+      endTime: end,
+      status: 'scheduled',
+      maxGuests: 6,
+      notes: 'Bring curiosity and indoor shoes.',
+    });
+
+    await PlaydateParticipant.create({
+      playdateId: bradPlaydate.id,
+      userId: 2,
+      role: 'host',
       status: 'approved',
       joinedAt: now,
     });

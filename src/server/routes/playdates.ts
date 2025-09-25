@@ -1,4 +1,5 @@
 import { Router, Request } from 'express';
+import { Op } from 'sequelize';
 import { Verify } from '../middleware/verify';
 import { AuthenticatedRequest } from '../middleware/AuthenticatedRequest';
 import Playdate from '../models/Playdate';
@@ -129,6 +130,36 @@ router.get('/', async (req, res) => {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to load playdates';
+    res.status(500).json({ message });
+  }
+});
+
+router.get('/host/:hostId', async (req, res) => {
+  try {
+    const hostId = Number(req.params.hostId);
+    if (!Number.isInteger(hostId)) {
+      res.status(400).json({ message: 'Invalid host id provided.' });
+      return;
+    }
+
+    const playdates = await Playdate.findAll({
+      where: {
+        hostId,
+        status: { [Op.ne]: 'closed' },
+      },
+      include: [
+        {
+          model: PlaydateParticipant,
+          as: 'participants',
+          include: [{ model: User, as: 'user', attributes: ['id', 'name'] }],
+        },
+      ],
+      order: [['startTime', 'ASC']],
+    });
+
+    res.json(playdates.map(serializePlaydate));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to load host playdates';
     res.status(500).json({ message });
   }
 });

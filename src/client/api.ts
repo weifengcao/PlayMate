@@ -248,6 +248,10 @@ export async function fetchPlaydateAudit(playdateId: number, participantId: numb
   return response.audit;
 }
 
+export async function getPlaydatesByHost(hostId: number): Promise<PlaydateHostSummary[]> {
+  return fetchApi<PlaydateHostSummary[]>(`/api/playdates/host/${hostId}`);
+}
+
 export async function deleteFriend(friendId: number): Promise<void> {
   const submission = await fetchApi<{ taskId: string }>("/api/friends/delete", {
     method: "POST",

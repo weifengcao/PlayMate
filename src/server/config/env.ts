@@ -44,9 +44,9 @@ export const appConfig = {
   db: {
     dialect: 'postgres',
     connectionString: process.env.DATABASE_URL,
-    database: process.env.DB_NAME ?? 'postgres',
+    database: process.env.DB_NAME ?? 'playmate',
     username: process.env.DB_USER ?? 'postgres',
-    password: process.env.DB_PASSWORD ?? 'postgres',
+    password: process.env.DB_PASSWORD ?? '',
     host: process.env.DB_HOST ?? '127.0.0.1',
     port: parseNumber(process.env.DB_PORT, 5432),
     ssl: parseBoolean(process.env.DB_SSL, false),

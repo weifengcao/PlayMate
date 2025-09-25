@@ -9,6 +9,7 @@ import {
   getMyPlaydatePoint,
   getPlaydateRecommendations,
   getPlaydatesOverview,
+  getPlaydatesByHost,
   leavePlaydate,
   requestJoinPlaydate,
   respondToJoinRequest,
@@ -70,6 +71,13 @@ const distanceKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
     Math.sin(dLon / 2) * Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return EARTH_RADIUS_KM * c;
+};
+
+const formatTimeRange = (startIso: string, endIso: string) => {
+  const formatter = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' });
+  const start = new Date(startIso);
+  const end = new Date(endIso);
+  return `${formatter.format(start)} – ${formatter.format(end)}`;
 };
 
 const createTimeWindow = (seed: number) => {
@@ -139,6 +147,7 @@ const LOCATION_HINT_DATA: Array<{ keywords: string[]; locations: LocationSuggest
       { label: "Magical Bridge Playground, Redwood City", coordinates: { lat: 37.4859, lng: -122.235 } },
       { label: "Marlin Park, Redwood City", coordinates: { lat: 37.5443, lng: -122.2623 } },
       { label: "Downtown Library Courtyard, Redwood City", coordinates: { lat: 37.4851, lng: -122.2287 } },
+      { label: "Redwood City Maker Space", coordinates: { lat: 37.4865, lng: -122.2322 } },
     ],
   },
   {
@@ -1281,18 +1290,6 @@ export const Dashboard = () => {
     }
   };
 
-  const pendingPlaydateRequests = useMemo(
-    () =>
-      hostedPlaydates.flatMap((playdate) =>
-        playdate.participants
-          .filter((participant) => participant.role === "guest" && participant.status === "pending")
-          .map((participant) => ({ playdate, participant }))
-      ),
-    [hostedPlaydates]
-  );
-
-  const pendingPlaydateCount = pendingPlaydateRequests.length;
-
   const scheduleLocationSuggestions = useMemo(
     () => buildLocationSuggestions(playdateScheduleForm.locationName),
     [playdateScheduleForm.locationName]
@@ -1334,6 +1331,56 @@ export const Dashboard = () => {
     });
     return markers;
   }, [hostedPlaydates, joinedPlaydateSummaries]);
+
+  const joinedOverviewEntries = useMemo(() => {
+    type Entry = { key: string; activity: string; host: string; range: string; status: string; startValue: number };
+    const entries: Entry[] = [];
+    const seen = new Set<string>();
+
+    joinedPlaydateSummaries.forEach((membership) => {
+      const key = `server-${membership.participantId}`;
+      if (seen.has(key)) {
+        return;
+      }
+      const statusLabel =
+        membership.status === 'approved'
+          ? 'Approved'
+          : membership.status === 'pending'
+          ? 'Pending approval'
+          : membership.status === 'rejected'
+          ? 'Rejected'
+          : 'Left';
+      entries.push({
+        key,
+        activity: membership.playdate.activity,
+        host: membership.playdate.host?.name ?? 'Unknown',
+        range: formatTimeRange(membership.playdate.startTime, membership.playdate.endTime),
+        status: statusLabel,
+        startValue: new Date(membership.playdate.startTime).getTime(),
+      });
+      seen.add(key);
+    });
+
+    joinedPlaydates.forEach((local, index) => {
+      const key = `local-${local.id ?? index}`;
+      if (seen.has(key)) {
+        return;
+      }
+      entries.push({
+        key,
+        activity: local.activity,
+        host: local.host,
+        range: `${local.start} – ${local.end}`,
+        status: local.status,
+        startValue: Date.now() + index,
+      });
+      seen.add(key);
+    });
+
+    return entries
+      .sort((a, b) => a.startValue - b.startValue)
+      .slice(0, 2);
+  }, [joinedPlaydateSummaries, joinedPlaydates]);
 
   const handleScheduleMapSelect = (coords: Coordinates) => {
     setScheduleMapPosition(coords);
@@ -1688,100 +1735,6 @@ export const Dashboard = () => {
       </PlaydateSectionBody>
     </Section>
 
-      <Section title={`Review join requests (${pendingPlaydateCount})`}>
-        <PlaydateSectionBody>
-          {playdatesLoading && <div>Scanning for pending guests...</div>}
-          {!playdatesLoading && pendingPlaydateCount === 0 && (
-            <PlaydateEmpty>No one is waiting for approval. Invite your trusted friends to join in.</PlaydateEmpty>
-          )}
-          {!playdatesLoading &&
-            pendingPlaydateRequests.map(({ playdate, participant }) => {
-              const audit = playdateAuditState[participant.id];
-              return (
-                <PlaydateCard key={`${playdate.id}-${participant.id}`}>
-                  <PlaydateCardHeader>
-                    <div>
-                      <PlaydateCardTitle>{participant.user?.name ?? "Unknown guardian"}</PlaydateCardTitle>
-                      <PlaydateCardMeta>
-                        <span>Requested for {playdate.title}</span>
-                        <span>
-                          {new Date(playdate.startTime).toLocaleString()} →
-                          {" "}
-                          {new Date(playdate.endTime).toLocaleTimeString()}
-                        </span>
-                        <span>{playdate.locationName}</span>
-                      </PlaydateCardMeta>
-                    </div>
-                    <PlaydateTag>Awaiting review</PlaydateTag>
-                  </PlaydateCardHeader>
-                  <IntroCopy>
-                    AI checks mutual friends, distance, PlayDate history, and public social cues so you can approve with
-                    confidence.
-                  </IntroCopy>
-                  <PlaydateButtonRow>
-                    <PlaydateButton
-                      type="button"
-                      size="sm"
-                      disabled={playdateDecisionBusy[participant.id]}
-                      onClick={() => handlePlaydateParticipant(playdate.id, participant, "approved")}
-                    >
-                      Approve
-                    </PlaydateButton>
-                    <PlaydateButton
-                      type="button"
-                      size="sm"
-                      variant="danger"
-                      disabled={playdateDecisionBusy[participant.id]}
-                      onClick={() => handlePlaydateParticipant(playdate.id, participant, "rejected")}
-                    >
-                      Reject
-                    </PlaydateButton>
-                    <PlaydateButton
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      disabled={audit?.loading}
-                      onClick={() => loadPlaydateAudit(playdate.id, participant)}
-                    >
-                      {audit?.loading ? "Loading AI audit..." : audit?.audit ? "Refresh AI audit" : "Run AI audit"}
-                    </PlaydateButton>
-                  </PlaydateButtonRow>
-                  {audit?.error && <PlaydateBanner tone="error">{audit.error}</PlaydateBanner>}
-                  {audit?.audit && (
-                    <PlaydateAuditCard>
-                      <strong>{audit.audit.summary}</strong>
-                      <PlaydateCardMeta>
-                        <span>Trust score: {audit.audit.trustScore} · Risk level: {audit.audit.riskLevel}</span>
-                        <span>
-                          Mutual friends: {audit.audit.mutualFriends}
-                          {audit.audit.distanceKm != null && ` · ${audit.audit.distanceKm.toFixed(1)} km away`}
-                        </span>
-                        {audit.audit.kidHighlights.length > 0 && (
-                          <span>
-                            Kid interests:
-                            {" "}
-                            {audit.audit.kidHighlights
-                              .map((kid) => `${kid.kidName} (${kid.favoriteActivity})`)
-                              .join(", ")}
-                          </span>
-                        )}
-                      </PlaydateCardMeta>
-                      <PlaydateParticipantList>
-                        {audit.audit.factors.map((factor) => (
-                          <PlaydateParticipantRow key={factor.label}>
-                            <strong>{factor.label}</strong>
-                            <span>{factor.detail}</span>
-                          </PlaydateParticipantRow>
-                        ))}
-                      </PlaydateParticipantList>
-                    </PlaydateAuditCard>
-                  )}
-                </PlaydateCard>
-              );
-            })}
-        </PlaydateSectionBody>
-      </Section>
-
       <Section title={`Hosted playdates (${hostedPlaydates.length})`}>
         <PlaydateSectionBody>
           {playdatesLoading && <div>Loading hosted playdates...</div>}
@@ -1790,10 +1743,11 @@ export const Dashboard = () => {
           )}
           {!playdatesLoading &&
             hostedPlaydates.map((playdate) => {
-              const approvedGuests = playdate.participants.filter(
+              const participants = playdate.participants ?? [];
+              const approvedGuests = participants.filter(
                 (participant) => participant.role === "guest" && participant.status === "approved"
               );
-              const pendingGuests = playdate.participants.filter(
+              const pendingGuests = participants.filter(
                 (participant) => participant.role === "guest" && participant.status === "pending"
               );
               const isEditing = editingPlaydateId === playdate.id && editPlaydateDraft;
@@ -1975,6 +1929,88 @@ export const Dashboard = () => {
                       </PlaydateButton>
                     </PlaydateButtonRow>
                   )}
+
+                  {pendingGuests.length > 0 && (
+                    <PlaydateSectionBody>
+                      <PlaydateCardMeta>Pending guest requests</PlaydateCardMeta>
+                      <PlaydateParticipantList>
+                        {pendingGuests.map((participant) => {
+                          const audit = playdateAuditState[participant.id];
+                          return (
+                            <PlaydateParticipantRow key={`${playdate.id}-${participant.id}-pending`}>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                <strong>{participant.user?.name ?? "Unknown guardian"}</strong>
+                                <PlaydateCardMeta>
+                                  <span>Status: Pending review</span>
+                                </PlaydateCardMeta>
+                              </div>
+                              <IntroCopy>
+                                AI checks mutual friends, distance, PlayDate history, and future plans so you can approve with confidence.
+                              </IntroCopy>
+                              <PlaydateButtonRow>
+                                <PlaydateButton
+                                  type="button"
+                                  size="sm"
+                                  disabled={playdateDecisionBusy[participant.id]}
+                                  onClick={() => handlePlaydateParticipant(playdate.id, participant, "approved")}
+                                >
+                                  Approve
+                                </PlaydateButton>
+                                <PlaydateButton
+                                  type="button"
+                                  size="sm"
+                                  variant="danger"
+                                  disabled={playdateDecisionBusy[participant.id]}
+                                  onClick={() => handlePlaydateParticipant(playdate.id, participant, "rejected")}
+                                >
+                                  Reject
+                                </PlaydateButton>
+                                <PlaydateButton
+                                  type="button"
+                                  size="sm"
+                                  variant="ghost"
+                                  disabled={audit?.loading}
+                                  onClick={() => loadPlaydateAudit(playdate.id, participant)}
+                                >
+                                  {audit?.loading ? "Loading AI audit..." : audit?.audit ? "Refresh AI audit" : "Run AI audit"}
+                                </PlaydateButton>
+                              </PlaydateButtonRow>
+                              {audit?.error && <PlaydateBanner tone="error">{audit.error}</PlaydateBanner>}
+                              {audit?.audit && (
+                                <PlaydateAuditCard>
+                                  <strong>{audit.audit.summary}</strong>
+                                  <PlaydateCardMeta>
+                                    <span>Trust score: {audit.audit.trustScore} · Risk level: {audit.audit.riskLevel}</span>
+                                    <span>
+                                      Mutual friends: {audit.audit.mutualFriends}
+                                      {audit.audit.distanceKm != null && ` · ${audit.audit.distanceKm.toFixed(1)} km away`}
+                                    </span>
+                                    {audit.audit.kidHighlights.length > 0 && (
+                                      <span>
+                                        Kid interests:
+                                        {" "}
+                                        {audit.audit.kidHighlights
+                                          .map((kid) => `${kid.kidName} (${kid.favoriteActivity})`)
+                                          .join(", ")}
+                                      </span>
+                                    )}
+                                  </PlaydateCardMeta>
+                                  <PlaydateParticipantList>
+                                    {audit.audit.factors.map((factor) => (
+                                      <PlaydateParticipantRow key={`${participant.id}-${factor.label}`}>
+                                        <strong>{factor.label}</strong>
+                                        <span>{factor.detail}</span>
+                                      </PlaydateParticipantRow>
+                                    ))}
+                                  </PlaydateParticipantList>
+                                </PlaydateAuditCard>
+                              )}
+                            </PlaydateParticipantRow>
+                          );
+                        })}
+                      </PlaydateParticipantList>
+                    </PlaydateSectionBody>
+                  )}
                 </PlaydateCard>
               );
             })}
@@ -2060,24 +2096,22 @@ export const Dashboard = () => {
   );
 
   const hostedPlaydate = useMemo(() => {
-    if (!auth.user) {
+    if (hostedPlaydates.length === 0) {
       return null;
     }
-    const match = overviewLeaderboard.find(
-      (item) => item.friendName && item.friendName.toLowerCase() === auth.user.toLowerCase()
-    );
-    if (!match) {
-      return null;
-    }
-    const times = createTimeWindow(match.friendId);
+    const sorted = [...hostedPlaydates].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+    const nextPlaydate = sorted[0];
+    const range = formatTimeRange(nextPlaydate.startTime, nextPlaydate.endTime).split(' – ');
     return {
-      activity: match.activity,
-      start: times.start,
-      end: times.end,
-      kids: match.kidCount ?? 0,
-      trust: deriveTrustScore(match.friendId),
+      activity: nextPlaydate.activity,
+      start: range[0],
+      end: range[1] ?? '',
+      kids:
+        nextPlaydate.participants.filter((participant) => participant.role === 'guest' && participant.status === 'approved')
+          .length,
+      trust: 95,
     };
-  }, [auth.user, overviewLeaderboard]);
+  }, [hostedPlaydates]);
 
   const handleLogout = useCallback(
     (event: MouseEvent<HTMLButtonElement>) => {
@@ -2110,7 +2144,7 @@ export const Dashboard = () => {
   }, []);
 
   const handleJoinSubmit = useCallback(
-    (event: FormEvent<HTMLFormElement>) => {
+    async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
       if (!joiningPlaydate) {
         return;
@@ -2119,25 +2153,107 @@ export const Dashboard = () => {
         setJoinMessage("Please complete guardian and kid information before applying.");
         return;
       }
-      const times = createTimeWindow(joiningPlaydate.friendId);
-      setJoinedPlaydates((previous) => [
-        ...previous,
-        {
-          id: Date.now(),
-          activity: joiningPlaydate.activity,
-          host: joiningPlaydate.friendName ?? "Local guardian",
-          start: times.start,
-          end: times.end,
-          status: "Pending approval",
-        },
-      ]);
-      setJoinMessage(
-        `Your request to join ${joiningPlaydate.activity} has been sent to ${joiningPlaydate.friendName ?? "the host"}. They will review and respond soon.`
-      );
-      setJoinForm({ guardianName: "", guardianEmail: "", kidName: "", notes: "" });
-      setJoiningPlaydate(null);
+      try {
+        let candidate: PlaydateHostSummary | null = null;
+        try {
+          const hostPlaydates = await getPlaydatesByHost(joiningPlaydate.friendId);
+          if (hostPlaydates.length > 0) {
+            candidate = hostPlaydates.find((playdate) =>
+              playdate.activity.toLowerCase() === joiningPlaydate.activity.toLowerCase()
+            ) ?? hostPlaydates[0];
+          }
+        } catch (lookupError) {
+          // ignore – we'll fall back to synthetic candidate
+        }
+
+        if (candidate) {
+          await requestJoinPlaydate(candidate.id);
+          await loadPlaydatesOverview();
+
+          const startTime = new Date(candidate.startTime);
+          const endTime = new Date(candidate.endTime);
+          const formatter = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" });
+
+          setJoinedPlaydates((previous) => [
+            ...previous,
+            {
+              id: candidate!.id,
+              activity: candidate!.activity,
+              host: candidate!.participants.find((p) => p.role === 'host')?.user?.name ?? joiningPlaydate.friendName ?? "Local guardian",
+              start: formatter.format(startTime),
+              end: formatter.format(endTime),
+              status: "Pending approval",
+            },
+          ]);
+        } else {
+          const now = new Date();
+          const start = new Date(now.getTime() + 1000 * 60 * 60 * 24);
+          const end = new Date(start.getTime() + 1000 * 60 * 90);
+          const locationLabel =
+            typeof joiningPlaydate.friendLatitude === "number" && typeof joiningPlaydate.friendLongitude === "number"
+              ? resolveLocationLabel({ lat: joiningPlaydate.friendLatitude, lng: joiningPlaydate.friendLongitude })
+              : "Location shared after approval";
+
+          const syntheticId = Date.now();
+          setJoinedPlaydates((previous) => [
+            ...previous,
+            {
+              id: syntheticId,
+              activity: joiningPlaydate.activity,
+              host: joiningPlaydate.friendName ?? "Local guardian",
+              start: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(start),
+              end: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(end),
+              status: "Pending approval",
+            },
+          ]);
+
+          setPlaydatesOverview((previous) => {
+            if (!previous) {
+              return previous;
+            }
+            const participantId = syntheticId + 1;
+            const newMembership: JoinedPlaydateSummary = {
+              playdateId: syntheticId,
+              participantId,
+              role: 'guest',
+              status: 'pending',
+              joinedAt: null,
+              decisionNote: null,
+              playdate: {
+                id: syntheticId,
+                title: joiningPlaydate.activity,
+                activity: joiningPlaydate.activity,
+                description: null,
+                locationName: locationLabel,
+                startTime: start.toISOString(),
+                endTime: end.toISOString(),
+                status: 'scheduled',
+                maxGuests: null,
+                notes: null,
+                host: {
+                  id: joiningPlaydate.friendId,
+                  name: joiningPlaydate.friendName ?? 'Local guardian',
+                },
+              },
+            };
+            return {
+              hosted: previous.hosted,
+              joined: [newMembership, ...previous.joined],
+            };
+          });
+        }
+
+        setJoinMessage(
+          `Your request to join ${joiningPlaydate.activity} has been sent to ${joiningPlaydate.friendName ?? "the host"}. They will review and respond soon.`
+        );
+        setJoinForm({ guardianName: "", guardianEmail: "", kidName: "", notes: "" });
+        setJoiningPlaydate(null);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unable to submit join request right now.';
+        setJoinMessage(message);
+      }
     },
-    [joinForm, joiningPlaydate]
+    [joinForm, joiningPlaydate, loadPlaydatesOverview]
   );
 
   const renderOverview = () => (
@@ -2371,22 +2487,20 @@ export const Dashboard = () => {
 
           <CurrentPlaydateCard>
             <CurrentPlaydateTitle>Joined</CurrentPlaydateTitle>
-            {joinedPlaydates.length ? (
-              joinedPlaydates.slice(-2).map((entry) => (
-                <div key={entry.id} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {joinedOverviewEntries.length ? (
+              joinedOverviewEntries.map((entry) => (
+                <div key={entry.key} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <CurrentPlaydateHeadline>{entry.activity}</CurrentPlaydateHeadline>
                   <CurrentPlaydateMeta>
                     <span>Host: {entry.host}</span>
-                    <span>
-                      {entry.start} – {entry.end}
-                    </span>
+                    <span>{entry.range}</span>
                     <span>Status: {entry.status}</span>
                   </CurrentPlaydateMeta>
                 </div>
               ))
             ) : (
               <CurrentPlaydateMeta>
-                <span>No pending requests. Browse the map to join an upcoming playdate.</span>
+                <span>No joined playdates yet. Send a request from the live map when something catches your eye.</span>
               </CurrentPlaydateMeta>
             )}
           </CurrentPlaydateCard>
