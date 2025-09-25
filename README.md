@@ -2,6 +2,8 @@
 
 PlayMate helps nearby parents coordinate fun, safe playdates by matching their kids by age, interests, and availability. The app ships a full-stack experience that blends a React front end, an Express/Node back end, and a PostgreSQL database with an async agent orchestrator.
 
+Live demo: https://play-mate-seven.vercel.app/
+
 ## Quick Start
 1. Install prerequisites: Node.js 18+ and a local PostgreSQL instance reachable on `127.0.0.1:5432`.
 2. Clone the repo and install dependencies:
