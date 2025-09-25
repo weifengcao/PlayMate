@@ -819,6 +819,12 @@ const PlaydateCardMeta = styled.div({
   fontWeight: 500,
 });
 
+const IntroCopy = styled.p({
+  margin: 0,
+  color: "var(--color-text-muted)",
+  fontWeight: 500,
+});
+
 const PlaydateTag = styled.span<{ tone?: "neutral" | "positive" | "warning" }>(({ tone = "neutral" }) => ({
   alignSelf: "flex-start",
   padding: "6px 12px",
